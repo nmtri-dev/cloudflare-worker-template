@@ -1,3 +1,3 @@
 export * from "./context";
 export * from "./logger";
-export * from "./accessManagmentService";
+export * from "./accessManagementService";
