@@ -1,0 +1,54 @@
+openapi: 3.1.0
+info:
+  title: Cloudflare Worker Template API
+  version: 0.1.0
+  description: |
+    OpenAPI specification for the current Cloudflare Worker HTTP API.
+    Response envelopes follow project conventions:
+    - Success: { "data": { ... } }
+    - Failure: { "error": "ErrorName" }
+servers:
+  - url: http://localhost:8787
+    description: Local development server (wrangler dev)
+paths:
+  /message:
+    get:
+      operationId: getMessage
+      summary: Get template greeting message
+      description: Returns a plain-text greeting from the template service.
+      responses:
+        "200":
+          description: Greeting message returned successfully.
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: Hello Hono!
+        "500":
+          description: Internal error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                internalError:
+                  value:
+                    error: InternalError
+components:
+  schemas:
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          enum:
+            - InternalError
+            - BadRequestError
+            - UnauthorizedError
+            - NotFoundError
+            - ConflictError
+            - ForbiddenError
+          example: InternalError

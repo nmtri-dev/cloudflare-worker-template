@@ -1,9 +1,5 @@
-import { Hono } from "hono";
+import app from "./adapters/primary/http";
 
-const app = new Hono<{ Bindings: CloudflareBindings }>();
-
-app.get("/message", (c) => {
-  return c.text("Hello Hono!");
-});
-
-export default app;
+export default {
+  fetch: app.fetch,
+};
