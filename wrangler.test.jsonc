@@ -1,0 +1,17 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "cloudflare-worker-template-test",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-04-29",
+  "compatibility_flags": ["nodejs_compat"],
+  "rules": [{ "type": "Text", "globs": ["**/*.key"], "fallthrough": false }],
+  "vars": {
+    "ALLOWED_ORIGINS": ""
+  },
+  "services": [
+    {
+      "binding": "ACCESS_MGMT",
+      "service": "cardy-ai-access-management-local"
+    }
+  ]
+}

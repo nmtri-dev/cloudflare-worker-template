@@ -1,7 +1,7 @@
 ---
 name: Feature Planning Agent
 description: "Use when planning new features, writing feature specs, designing API endpoints, or creating technical designs for this Cloudflare Worker service"
-tools: [read, search, todo, edit]
+tools: [vscode/askQuestions, read, edit, search, todo]
 argument-hint: "Describe the feature you want to plan, e.g. 'Plan a new authenticated endpoint for creating chat messages'"
 ---
 

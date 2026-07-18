@@ -79,11 +79,13 @@ All routes are mounted in `src/adapters/primary/http/index.ts`:
 
 | Command                | Purpose                                               |
 | ---------------------- | ----------------------------------------------------- |
-| `npm run dev`          | Start local dev server (`wrangler dev`)               |
-| `npm test`             | Run test suite (`vitest run`)                         |
-| `npm run test:watch`   | Run tests in watch mode (`vitest`)                    |
-| `npm run cf-typegen`   | Regenerate types after wrangler.jsonc binding changes |
-| `npm run deploy-local` | Deploy to `local` environment                         |
+| `npm run dev`                   | Start local dev server (`wrangler dev`)               |
+| `npm test`                      | Run test suite (`vitest run`)                         |
+| `npm run test:watch`            | Run tests in watch mode (`vitest`)                    |
+| `npm run test:integration`      | Run integration tests (`vitest run --config vitest.integration.config.mts`) |
+| `npm run test:integration:watch`| Run integration tests in watch mode                   |
+| `npm run cf-typegen`            | Regenerate types after wrangler.jsonc binding changes |
+| `npm run deploy-local`          | Deploy to `local` environment                         |
 
 Run `npm run cf-typegen` after any change to bindings in `wrangler.jsonc`.
 
@@ -140,14 +142,24 @@ No deviations from this format.
 
 ## Testing
 
+### Unit Tests (`npm test`)
+
 - Always check if new updates break any tests.
 - Always add test to covers newly added code.
-- Tests live in `test/` and use `SELF.fetch()` for integration testing against live Hono routes
 - Config: `vitest.config.mts` (standard Vitest, no pool-workers for unit tests)
 - Unit tests for services mock ports with lightweight test doubles (`vi.fn`, `vi.mocked`)
-- Test files mirror the structure they test
+- Test files mirror the structure they test under `test/`
 - Zod schema validation tests live in `test/models/requestSchemas.spec.ts`
 - Run `npm test` before committing
+
+### Integration Tests (`npm run test:integration`)
+
+- Config: `vitest.integration.config.mts` uses `@cloudflare/vitest-pool-workers`
+- Wrangler test config: `wrangler.test.jsonc` (separate from main wrangler config)
+- Integration tests use `SELF.fetch()` from `cloudflare:test` to test against live Hono routes
+- Mock external service bindings via `workers` in miniflare config within `vitest.integration.config.mts`
+- Test helpers (auth, jwt) live in `test/integration/helpers/`
+- Type augmentations live in `test/integration/env.d.ts` and `test/integration/globals.d.ts`
 
 ## Documents
 

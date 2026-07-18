@@ -5,13 +5,22 @@
     "dev": "wrangler dev",
     "deploy": "wrangler deploy --minify",
     "deploy-local": "wrangler deploy --minify -e=local",
-    "cf-typegen": "wrangler types --env-interface CloudflareBindings"
+    "cf-typegen": "wrangler types --env-interface CloudflareBindings",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:integration": "vitest run --config vitest.integration.config.mts",
+    "test:integration:watch": "vitest --config vitest.integration.config.mts"
   },
   "dependencies": {
-    "hono": "^4.12.15"
+    "@hono/standard-validator": "^0.2.3",
+    "hono": "^4.12.15",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.18.2",
     "@types/node": "^25.6.0",
+    "jose": "^6.2.3",
+    "vitest": "^4.1.10",
     "wrangler": "^4.86.0"
   }
 }

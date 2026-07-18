@@ -51,6 +51,10 @@ The Worker runs on Wrangler's local development server (typically `http://localh
 - `npm run dev`: Start local development server (`wrangler dev`)
 - `npm run deploy`: Deploy Worker (`wrangler deploy --minify`)
 - `npm run deploy-local`: Deploy using local environment (`wrangler deploy --minify -e=local`)
+- `npm test`: Run unit tests (`vitest run`)
+- `npm run test:watch`: Run unit tests in watch mode (`vitest`)
+- `npm run test:integration`: Run integration tests (`vitest run --config vitest.integration.config.mts`)
+- `npm run test:integration:watch`: Run integration tests in watch mode
 - `npm run cf-typegen`: Regenerate Worker bindings types (`wrangler types --env-interface CloudflareBindings`)
 
 Run `npm run cf-typegen` after editing bindings in `wrangler.jsonc`.
@@ -122,6 +126,44 @@ When adding a new feature:
 4. Add HTTP route/schema/middleware wiring in `src/adapters/primary/http`
 5. Add or update adapter implementations in `src/adapters/secondary`
 6. Update `openapi.yaml` to reflect API changes
+7. Add corresponding unit and integration tests in `test/`
+
+## Testing
+
+This template includes both unit tests and integration tests.
+
+### Unit Tests
+
+Standard Vitest with no pool-workers. Used for isolated testing of services, with dependencies mocked via `vi.fn` / `vi.mocked`.
+
+```bash
+npm test              # run once
+npm run test:watch    # watch mode
+```
+
+Tests live in `test/` and mirror the source structure. Example: `test/services/example.spec.ts`.
+
+### Integration Tests
+
+Uses `@cloudflare/vitest-pool-workers` to run the Worker in a real miniflare sandbox. Tests use `SELF.fetch()` from `cloudflare:test` to make real HTTP requests against live Hono routes.
+
+```bash
+npm run test:integration           # run once
+npm run test:integration:watch     # watch mode
+```
+
+Configuration files:
+
+| File | Purpose |
+|------|---------|
+| `vitest.integration.config.mts` | Integration Vitest config with `cloudflareTest` plugin |
+| `wrangler.test.jsonc` | Miniflare test environment (bindings, vars, services) |
+| `test/integration/env.d.ts` | TypeScript env augmentation for `cloudflare:test` |
+| `test/integration/globals.d.ts` | Global type augmentations (typed `res.json<T>()`) |
+| `test/integration/helpers/auth.ts` | Helper to generate Authorization headers |
+| `test/integration/helpers/jwt.ts` | JWT generation for test contexts |
+
+Mock external service bindings (e.g., `ACCESS_MGMT`) via the `workers` option in `vitest.integration.config.mts`.
 
 ## Deployment
 
