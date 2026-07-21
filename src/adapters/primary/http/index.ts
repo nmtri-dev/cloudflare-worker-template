@@ -5,6 +5,7 @@ import { handleError, requestIdMiddleware } from "./middlewares";
 import { secureHeaders } from "hono/secure-headers";
 import { cors } from "hono/cors";
 import { AppEnv } from "./types";
+import { creditRoutes } from "./routes/credits";
 
 const app = new Hono<AppEnv>();
 
@@ -24,5 +25,7 @@ app.onError(handleError);
 app.get("/message", (c) => {
   return c.text("Hello Hono!");
 });
+
+app.route("/admin/credits", creditRoutes);
 
 export default app;

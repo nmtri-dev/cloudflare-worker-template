@@ -22,6 +22,27 @@
       "service": "cardy-ai-access-management-local",
     },
   ],
+  "d1_databases": [
+    {
+      "binding": "CREDIT_DB",
+      "database_name": "1a18fe41-042e-4851-a488-e8fa26fc2b92",
+      "database_id": "1a18fe41-042e-4851-a488-e8fa26fc2b92",
+    },
+  ],
+  "queues": {
+    "consumers": [
+      {
+        "queue": "credit-reset-queue",
+        "max_retries": 3,
+      },
+    ],
+    "producers": [
+      {
+        "binding": "CREDIT_RESET_QUEUE",
+        "queue": "credit-reset-queue",
+      },
+    ],
+  },
   "env": {
     "local": {
       "vars": {
@@ -31,6 +52,13 @@
         {
           "binding": "ACCESS_MGMT",
           "service": "cardy-ai-access-management-local",
+        },
+      ],
+      "d1_databases": [
+        {
+          "binding": "CREDIT_DB",
+          "database_name": "1a18fe41-042e-4851-a488-e8fa26fc2b92",
+          "database_id": "1a18fe41-042e-4851-a488-e8fa26fc2b92",
         },
       ],
     },

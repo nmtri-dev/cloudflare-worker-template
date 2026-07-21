@@ -13,5 +13,26 @@
       "binding": "ACCESS_MGMT",
       "service": "cardy-ai-access-management-local"
     }
-  ]
+  ],
+  "d1_databases": [
+    {
+      "binding": "CREDIT_DB",
+      "database_name": "cardy-ai-credit-db-test",
+      "database_id": "test-db"
+    }
+  ],
+  "queues": {
+    "consumers": [
+      {
+        "queue": "credit-reset-queue",
+        "max_retries": 3
+      }
+    ],
+    "producers": [
+      {
+        "binding": "CREDIT_RESET_QUEUE",
+        "queue": "credit-reset-queue"
+      }
+    ]
+  }
 }

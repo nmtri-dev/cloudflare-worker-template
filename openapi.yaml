@@ -34,6 +34,205 @@ paths:
                 internalError:
                   value:
                     error: InternalError
+  /admin/credits/grant/monthly:
+    post:
+      operationId: grantMonthlyCredits
+      summary: Grant monthly credits to a user (300 credits, once per month)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId, year, month]
+              properties:
+                userId:
+                  type: string
+                  format: uuid
+                year:
+                  type: integer
+                  minimum: 2000
+                  maximum: 2100
+                month:
+                  type: integer
+                  minimum: 1
+                  maximum: 12
+      responses:
+        "201":
+          description: Credits granted (300 credits awarded)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GrantResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /admin/credits/grant/permanent:
+    post:
+      operationId: grantPermanentCredits
+      summary: Grant permanent credits to a user
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId, credits]
+              properties:
+                userId:
+                  type: string
+                  format: uuid
+                credits:
+                  type: integer
+                  minimum: 1
+      responses:
+        "201":
+          description: Credits granted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GrantResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /admin/credits/recall/monthly:
+    post:
+      operationId: recallMonthlyCredits
+      summary: Recall all remaining monthly credits
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId, creditAccountId]
+              properties:
+                userId:
+                  type: string
+                  format: uuid
+                creditAccountId:
+                  type: string
+                  format: uuid
+      responses:
+        "200":
+          description: Credits recalled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecallResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /admin/credits/recall/permanent:
+    post:
+      operationId: recallPermanentCredits
+      summary: Partially recall permanent credits (looked up by userId)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId, credits]
+              properties:
+                userId:
+                  type: string
+                  format: uuid
+                credits:
+                  type: integer
+                  minimum: 1
+      responses:
+        "200":
+          description: Credits recalled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecallResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /admin/credits/reset/monthly:
+    post:
+      operationId: resetMonthlyCredits
+      summary: Enqueue a user's monthly credit reset
+      description: Enqueues a user's monthly credit refill to be processed asynchronously. Returns 202 Accepted immediately.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId]
+              properties:
+                userId:
+                  type: string
+                  format: uuid
+      responses:
+        "202":
+          description: Reset job enqueued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QueuedResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /admin/credits/reset/monthly-all:
+    post:
+      operationId: resetMonthlyCreditsForAllUsers
+      summary: Enqueue monthly credit resets for all users
+      description: Enqueues refill jobs for all users with current-month credit accounts. Returns 202 Accepted immediately.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties: {}
+      responses:
+        "202":
+          description: Reset jobs enqueued for all users
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QueuedAllResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
 components:
   schemas:
     ErrorResponse:
@@ -52,3 +251,129 @@ components:
             - ConflictError
             - ForbiddenError
           example: InternalError
+    CreditAccount:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum: [monthly, permanent]
+        availableCredits:
+          type: integer
+        effectiveFrom:
+          type: integer
+          nullable: true
+        expiredAt:
+          type: integer
+          nullable: true
+        updatedAt:
+          type: integer
+    CreditLedger:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum: [grant, charge, refund, recall]
+        creditsDelta:
+          type: integer
+        referenceType:
+          type: string
+          enum: [subscription, admin, ai]
+        referenceId:
+          type: string
+          format: uuid
+        creditAccountId:
+          type: string
+          format: uuid
+        createdAt:
+          type: integer
+    GrantResponse:
+      type: object
+      properties:
+        account:
+          $ref: "#/components/schemas/CreditAccount"
+        ledger:
+          $ref: "#/components/schemas/CreditLedger"
+    RecallResponse:
+      type: object
+      properties:
+        account:
+          $ref: "#/components/schemas/CreditAccount"
+        ledger:
+          $ref: "#/components/schemas/CreditLedger"
+    ResetResponse:
+      type: object
+      properties:
+        accountsReset:
+          type: integer
+          description: Number of accounts reset
+        ledgers:
+          type: array
+          items:
+            $ref: "#/components/schemas/CreditLedger"
+          description: Ledger entries created for resets
+    QueuedResponse:
+      type: object
+      properties:
+        userId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [queued]
+    QueuedAllResponse:
+      type: object
+      properties:
+        enqueuedCount:
+          type: integer
+          description: Number of jobs enqueued
+        status:
+          type: string
+          enum: [queued]
+  responses:
+    BadRequest:
+      description: Bad Request
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Forbidden:
+      description: Forbidden
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    NotFound:
+      description: Not Found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Conflict:
+      description: Conflict
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
