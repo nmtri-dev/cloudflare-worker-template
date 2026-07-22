@@ -6,6 +6,7 @@ import { AppEnv } from "../types";
 import { CreditService } from "../../../../core/services/creditService";
 import { D1CreditRepository } from "../../../secondary/d1CreditRepository";
 import { DefaultLogger } from "../../../secondary/loggers";
+import { getCurrentMonthlyPeriodUTC } from "../../../../utils/dateUtils";
 import {
   grantMonthlySchema,
   grantPermanentSchema,
@@ -214,15 +215,7 @@ creditRoutes.post(
       new DefaultLogger(),
     );
 
-    // Compute current month period
-    const now = new Date();
-    const effectiveFrom = Math.floor(
-      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1) / 1000,
-    );
-    const expiredAt = Math.floor(
-      Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0, 23, 59, 59) /
-        1000,
-    );
+    const { effectiveFrom, expiredAt } = getCurrentMonthlyPeriodUTC();
 
     // Get all monthly accounts for current period
     const accounts = await creditRepo.getMonthlyAccountsByPeriod(

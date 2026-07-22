@@ -18,6 +18,7 @@ import {
   MONTHLY_CREDIT_AMOUNT,
 } from "../domain";
 import { CreditRepository, Logger } from "../ports";
+import { getCurrentMonthlyPeriodUTC } from "../../utils/dateUtils";
 
 export class CreditService {
   constructor(
@@ -473,15 +474,7 @@ export class CreditService {
   async resetMonthlyByUser(
     input: ResetMonthlyByUserInput,
   ): Promise<ResetMonthlyResult> {
-    // Compute current month period (1st of month → last day of month)
-    const now = new Date();
-    const effectiveFrom = Math.floor(
-      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1) / 1000,
-    );
-    const expiredAt = Math.floor(
-      Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0, 23, 59, 59) /
-        1000,
-    );
+    const { effectiveFrom, expiredAt } = getCurrentMonthlyPeriodUTC();
 
     this.logger.info("Starting monthly reset for user", {
       userId: input.userId,
@@ -558,15 +551,7 @@ export class CreditService {
   async resetMonthlyForAllUsers(
     _input: ResetMonthlyForAllUsersInput,
   ): Promise<ResetMonthlyResult> {
-    // Compute current month period (1st of month → last day of month)
-    const now = new Date();
-    const effectiveFrom = Math.floor(
-      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1) / 1000,
-    );
-    const expiredAt = Math.floor(
-      Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0, 23, 59, 59) /
-        1000,
-    );
+    const { effectiveFrom, expiredAt } = getCurrentMonthlyPeriodUTC();
 
     this.logger.info("Starting monthly reset for all users", {
       effectiveFrom,
@@ -639,15 +624,7 @@ export class CreditService {
   async getUserCredits(userId: string): Promise<UserCreditsResult> {
     this.logger.info("Getting credits for user", { userId });
 
-    // Compute current month period (1st of month → last day of month)
-    const now = new Date();
-    const effectiveFrom = Math.floor(
-      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1) / 1000,
-    );
-    const expiredAt = Math.floor(
-      Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0, 23, 59, 59) /
-        1000,
-    );
+    const { effectiveFrom, expiredAt } = getCurrentMonthlyPeriodUTC();
 
     // Fetch monthly and permanent accounts in parallel
     const [monthlyAccount, permanentAccount] = await Promise.all([
