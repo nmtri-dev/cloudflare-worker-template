@@ -53,6 +53,10 @@ export interface MonthlyRecallInput {
 
 export interface PermanentRecallInput {
   userId: string;
+}
+
+export interface PartialPermanentRecallInput {
+  userId: string;
   credits: number;
 }
 

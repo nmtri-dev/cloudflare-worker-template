@@ -145,7 +145,39 @@ paths:
   /admin/credits/recall/permanent:
     post:
       operationId: recallPermanentCredits
-      summary: Partially recall permanent credits (looked up by userId)
+      summary: Fully recall all remaining permanent credits (looked up by userId)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId]
+              properties:
+                userId:
+                  type: string
+                  format: uuid
+      responses:
+        "200":
+          description: Credits fully recalled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecallResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /admin/credits/recall/permanent/partial:
+    post:
+      operationId: recallPermanentCreditsPartial
+      summary: Partially recall a specific amount of permanent credits (looked up by userId)
       security:
         - bearerAuth: []
       requestBody:
@@ -164,7 +196,7 @@ paths:
                   minimum: 1
       responses:
         "200":
-          description: Credits recalled
+          description: Credits partially recalled
           content:
             application/json:
               schema:
@@ -289,7 +321,7 @@ components:
           type: integer
         referenceType:
           type: string
-          enum: [subscription, admin, ai]
+          enum: [subscription, admin, ai-session]
         referenceId:
           type: string
           format: uuid
@@ -301,46 +333,61 @@ components:
     GrantResponse:
       type: object
       properties:
-        account:
-          $ref: "#/components/schemas/CreditAccount"
-        ledger:
-          $ref: "#/components/schemas/CreditLedger"
+        data:
+          type: object
+          properties:
+            account:
+              $ref: "#/components/schemas/CreditAccount"
+            ledger:
+              $ref: "#/components/schemas/CreditLedger"
     RecallResponse:
       type: object
       properties:
-        account:
-          $ref: "#/components/schemas/CreditAccount"
-        ledger:
-          $ref: "#/components/schemas/CreditLedger"
+        data:
+          type: object
+          properties:
+            account:
+              $ref: "#/components/schemas/CreditAccount"
+            ledger:
+              $ref: "#/components/schemas/CreditLedger"
     ResetResponse:
       type: object
       properties:
-        accountsReset:
-          type: integer
-          description: Number of accounts reset
-        ledgers:
-          type: array
-          items:
-            $ref: "#/components/schemas/CreditLedger"
-          description: Ledger entries created for resets
+        data:
+          type: object
+          properties:
+            accountsReset:
+              type: integer
+              description: Number of accounts reset
+            ledgers:
+              type: array
+              items:
+                $ref: "#/components/schemas/CreditLedger"
+              description: Ledger entries created for resets
     QueuedResponse:
       type: object
       properties:
-        userId:
-          type: string
-          format: uuid
-        status:
-          type: string
-          enum: [queued]
+        data:
+          type: object
+          properties:
+            userId:
+              type: string
+              format: uuid
+            status:
+              type: string
+              enum: [queued]
     QueuedAllResponse:
       type: object
       properties:
-        enqueuedCount:
-          type: integer
-          description: Number of jobs enqueued
-        status:
-          type: string
-          enum: [queued]
+        data:
+          type: object
+          properties:
+            enqueuedCount:
+              type: integer
+              description: Number of jobs enqueued
+            status:
+              type: string
+              enum: [queued]
   responses:
     BadRequest:
       description: Bad Request

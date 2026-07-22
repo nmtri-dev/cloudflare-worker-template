@@ -1,8 +1,11 @@
-import { CreditAccount, CreditLedger } from "../../core/domain";
-import { CreditRepository } from "../../core/ports";
+import { CreditAccount, CreditLedger, InternalError } from "../../core/domain";
+import { CreditRepository, Logger } from "../../core/ports";
 
 export class D1CreditRepository implements CreditRepository {
-  constructor(private readonly db: D1Database) {}
+  constructor(
+    private readonly db: D1Database,
+    private logger: Logger,
+  ) {}
 
   async createAccount(account: CreditAccount): Promise<CreditAccount> {
     const stmt = this.db
@@ -170,7 +173,8 @@ export class D1CreditRepository implements CreditRepository {
 
     const account = await this.getAccountById(accountId);
     if (!account) {
-      throw new Error("Account not found after re-grant");
+      this.logger.error("Account not found after re-grant", { accountId });
+      throw new InternalError("Account not found after re-grant");
     }
 
     return { account, ledger };

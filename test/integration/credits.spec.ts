@@ -144,11 +144,12 @@ describe("POST /admin/credits/grant/monthly", () => {
 });
 
 describe("POST /admin/credits/grant/permanent", () => {
-  it("should return 201 with account and ledger on success", async () => {
+  it("should return 201 with account and ledger on first grant", async () => {
+    const userId = "550e8400-e29b-41d4-a716-44665544a001";
     const { status, data } = await post(
       "/admin/credits/grant/permanent",
       {
-        userId: "550e8400-e29b-41d4-a716-446655440003",
+        userId,
         credits: 100,
       },
       authHeader,
@@ -162,6 +163,35 @@ describe("POST /admin/credits/grant/permanent", () => {
     expect(inner.ledger).toBeDefined();
     const account = inner.account as Record<string, unknown>;
     expect(account.type).toBe("permanent");
+    expect(account.availableCredits).toBe(100);
+  });
+
+  it("should top up existing permanent account on subsequent grant", async () => {
+    const userId = "550e8400-e29b-41d4-a716-44665544a002";
+
+    // First grant
+    const firstGrant = await post(
+      "/admin/credits/grant/permanent",
+      { userId, credits: 100 },
+      authHeader,
+    );
+    expect(firstGrant.status).toBe(201);
+
+    // Second grant — should top up
+    const { status, data } = await post(
+      "/admin/credits/grant/permanent",
+      { userId, credits: 50 },
+      authHeader,
+    );
+
+    expect(status).toBe(201);
+    const inner = (data as Record<string, unknown>).data as Record<string, unknown>;
+    const account = inner.account as Record<string, unknown>;
+    expect(account.availableCredits).toBe(150);
+    expect(account.type).toBe("permanent");
+    const ledger = inner.ledger as Record<string, unknown>;
+    expect(ledger.creditsDelta).toBe(50);
+    expect(ledger.type).toBe("grant");
   });
 });
 
@@ -207,8 +237,44 @@ describe("POST /admin/credits/recall/monthly", () => {
 });
 
 describe("POST /admin/credits/recall/permanent", () => {
-  it("should return 200 for partial recall (no creditAccountId needed)", async () => {
+  it("should return 200 and fully recall all remaining credits", async () => {
     const userId = "550e8400-e29b-41d4-a716-446655440005";
+
+    // Grant permanent
+    await post(
+      "/admin/credits/grant/permanent",
+      { userId, credits: 200 },
+      authHeader,
+    );
+
+    // Full recall
+    const { status, data } = await post(
+      "/admin/credits/recall/permanent",
+      { userId },
+      authHeader,
+    );
+
+    expect(status).toBe(200);
+    const inner = (data as Record<string, unknown>).data as Record<string, unknown>;
+    const account = inner.account as Record<string, unknown>;
+    expect(account.availableCredits).toBe(0);
+  });
+
+  it("should return 404 when no permanent account exists", async () => {
+    const { status, data } = await post(
+      "/admin/credits/recall/permanent",
+      { userId: "550e8400-e29b-41d4-a716-446655449998" },
+      authHeader,
+    );
+
+    expect(status).toBe(404);
+    expect((data as Record<string, unknown>).error).toBe("NotFoundError");
+  });
+});
+
+describe("POST /admin/credits/recall/permanent/partial", () => {
+  it("should return 200 for partial recall", async () => {
+    const userId = "550e8400-e29b-41d4-a716-446655440007";
 
     // Grant permanent
     await post(
@@ -219,7 +285,7 @@ describe("POST /admin/credits/recall/permanent", () => {
 
     // Partial recall
     const { status, data } = await post(
-      "/admin/credits/recall/permanent",
+      "/admin/credits/recall/permanent/partial",
       { userId, credits: 50 },
       authHeader,
     );
@@ -228,10 +294,12 @@ describe("POST /admin/credits/recall/permanent", () => {
     const inner = (data as Record<string, unknown>).data as Record<string, unknown>;
     const account = inner.account as Record<string, unknown>;
     expect(account.availableCredits).toBe(150);
+    const ledger = inner.ledger as Record<string, unknown>;
+    expect(ledger.creditsDelta).toBe(-50);
   });
 
   it("should return 400 for insufficient credits", async () => {
-    const userId = "550e8400-e29b-41d4-a716-446655440006";
+    const userId = "550e8400-e29b-41d4-a716-446655440008";
 
     // Grant permanent
     await post(
@@ -242,27 +310,13 @@ describe("POST /admin/credits/recall/permanent", () => {
 
     // Try to recall more than available
     const { status, data } = await post(
-      "/admin/credits/recall/permanent",
+      "/admin/credits/recall/permanent/partial",
       { userId, credits: 100 },
       authHeader,
     );
 
     expect(status).toBe(400);
     expect((data as Record<string, unknown>).error).toBe("BadRequestError");
-  });
-
-  it("should return 404 when no permanent account exists", async () => {
-    const { status, data } = await post(
-      "/admin/credits/recall/permanent",
-      {
-        userId: "550e8400-e29b-41d4-a716-446655449999",
-        credits: 50,
-      },
-      authHeader,
-    );
-
-    expect(status).toBe(404);
-    expect((data as Record<string, unknown>).error).toBe("NotFoundError");
   });
 });
 

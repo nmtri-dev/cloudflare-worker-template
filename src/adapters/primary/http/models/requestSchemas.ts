@@ -18,6 +18,10 @@ export const recallMonthlySchema = z.object({
 
 export const recallPermanentSchema = z.object({
   userId: z.uuid(),
+});
+
+export const recallPermanentPartialSchema = z.object({
+  userId: z.uuid(),
   credits: z.number().int().positive(),
 });
 

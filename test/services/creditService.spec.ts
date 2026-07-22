@@ -8,6 +8,7 @@ import {
   PermanentGrantInput,
   MonthlyRecallInput,
   PermanentRecallInput,
+  PartialPermanentRecallInput,
   BadRequestError,
   NotFoundError,
   ConflictError,
@@ -75,8 +76,8 @@ describe("CreditService", () => {
 
       const result = await service.grantMonthly(input);
 
-      const accountArg = (mockRepo.grantCredits as ReturnType<typeof vi.fn>).mock
-        .calls[0][0] as CreditAccount;
+      const accountArg = (mockRepo.grantCredits as ReturnType<typeof vi.fn>)
+        .mock.calls[0][0] as CreditAccount;
       // July 2026: 1st is 2026-07-01 00:00:00 UTC
       expect(accountArg.effectiveFrom).toBe(
         Math.floor(Date.UTC(2026, 6, 1) / 1000),
@@ -108,9 +109,7 @@ describe("CreditService", () => {
         month: 7,
       };
 
-      await expect(service.grantMonthly(input)).rejects.toThrow(
-        ConflictError,
-      );
+      await expect(service.grantMonthly(input)).rejects.toThrow(ConflictError);
       await expect(service.grantMonthly(input)).rejects.toThrow(
         "Monthly credit already granted for this period",
       );
@@ -129,14 +128,11 @@ describe("CreditService", () => {
 
       const input: MonthlyGrantInput = {
         userId: "user-uuid-1",
-        credits: 50,
         year: 2026,
         month: 7,
       };
 
-      await expect(service.grantMonthly(input)).rejects.toThrow(
-        ConflictError,
-      );
+      await expect(service.grantMonthly(input)).rejects.toThrow(ConflictError);
       await expect(service.grantMonthly(input)).rejects.toThrow(
         "Monthly credit already granted for this period",
       );
@@ -146,8 +142,9 @@ describe("CreditService", () => {
   // ── grantPermanent ──
 
   describe("grantPermanent", () => {
-    it("should create account with null effectiveFrom and expiredAt", async () => {
+    it("should create account with null effectiveFrom and expiredAt (first grant)", async () => {
       const mockRepo = {
+        getPermanentAccountByUserId: vi.fn().mockResolvedValue(null),
         grantCredits: vi
           .fn()
           .mockImplementation((account, ledger) =>
@@ -164,8 +161,8 @@ describe("CreditService", () => {
 
       const result = await service.grantPermanent(input);
 
-      const accountArg = (mockRepo.grantCredits as ReturnType<typeof vi.fn>).mock
-        .calls[0][0] as CreditAccount;
+      const accountArg = (mockRepo.grantCredits as ReturnType<typeof vi.fn>)
+        .mock.calls[0][0] as CreditAccount;
       expect(accountArg.effectiveFrom).toBeNull();
       expect(accountArg.expiredAt).toBeNull();
       expect(accountArg.type).toBe("permanent");
@@ -174,8 +171,49 @@ describe("CreditService", () => {
       expect(result.ledger).toBeDefined();
     });
 
+    it("should top up existing permanent account on subsequent grant", async () => {
+      const existingAccount = makeAccount({
+        type: "permanent",
+        availableCredits: 100,
+      });
+      const toppedUpAccount = makeAccount({
+        type: "permanent",
+        availableCredits: 300,
+      });
+
+      const mockRepo = {
+        getPermanentAccountByUserId: vi
+          .fn()
+          .mockResolvedValue(existingAccount),
+        reGrantCredits: vi.fn().mockResolvedValue({
+          account: toppedUpAccount,
+          ledger: makeLedger({
+            type: "grant",
+            creditsDelta: 200,
+            creditAccountId: existingAccount.id,
+          }),
+        }),
+      } as unknown as CreditRepository;
+      const logger = makeLogger();
+      const service = new CreditService(mockRepo, logger);
+
+      const result = await service.grantPermanent({
+        userId: "user-uuid-1",
+        credits: 200,
+      });
+
+      expect(mockRepo.getPermanentAccountByUserId).toHaveBeenCalledWith(
+        "user-uuid-1",
+      );
+      expect(mockRepo.reGrantCredits).toHaveBeenCalledOnce();
+      expect(result.account.availableCredits).toBe(300);
+      expect(result.ledger.type).toBe("grant");
+      expect(result.ledger.creditsDelta).toBe(200);
+    });
+
     it("should successfully grant for any credits amount", async () => {
       const mockRepo = {
+        getPermanentAccountByUserId: vi.fn().mockResolvedValue(null),
         grantCredits: vi
           .fn()
           .mockImplementation((account, ledger) =>
@@ -293,7 +331,75 @@ describe("CreditService", () => {
   // ── recallPermanent ──
 
   describe("recallPermanent", () => {
-    it("should deduct specified credits via getPermanentAccountByUserId", async () => {
+    it("should deduct all remaining credits (availableCredits → 0)", async () => {
+      const existingAccount = makeAccount({
+        type: "permanent",
+        availableCredits: 200,
+      });
+      const updatedAccount = makeAccount({
+        type: "permanent",
+        availableCredits: 0,
+      });
+
+      const mockRepo = {
+        getPermanentAccountByUserId: vi.fn().mockResolvedValue(existingAccount),
+        getAccountById: vi.fn().mockResolvedValue(updatedAccount),
+        recallCredits: vi.fn().mockResolvedValue({
+          ledger: makeLedger({
+            type: "recall",
+            creditsDelta: -200,
+            creditAccountId: existingAccount.id,
+          }),
+        }),
+      } as unknown as CreditRepository;
+      const logger = makeLogger();
+      const service = new CreditService(mockRepo, logger);
+
+      const result = await service.recallPermanent({
+        userId: "user-uuid-1",
+      });
+
+      expect(mockRepo.getPermanentAccountByUserId).toHaveBeenCalledWith(
+        "user-uuid-1",
+      );
+      expect(result.account.availableCredits).toBe(0);
+      expect(result.ledger.type).toBe("recall");
+      expect(result.ledger.creditsDelta).toBe(-200);
+    });
+
+    it("should throw NotFoundError if no permanent account exists", async () => {
+      const mockRepo = {
+        getPermanentAccountByUserId: vi.fn().mockResolvedValue(null),
+      } as unknown as CreditRepository;
+      const logger = makeLogger();
+      const service = new CreditService(mockRepo, logger);
+
+      await expect(
+        service.recallPermanent({ userId: "user-uuid-1" }),
+      ).rejects.toThrow(NotFoundError);
+    });
+
+    it("should throw BadRequestError if no remaining credits", async () => {
+      const existingAccount = makeAccount({
+        type: "permanent",
+        availableCredits: 0,
+      });
+      const mockRepo = {
+        getPermanentAccountByUserId: vi.fn().mockResolvedValue(existingAccount),
+      } as unknown as CreditRepository;
+      const logger = makeLogger();
+      const service = new CreditService(mockRepo, logger);
+
+      await expect(
+        service.recallPermanent({ userId: "user-uuid-1" }),
+      ).rejects.toThrow(BadRequestError);
+    });
+  });
+
+  // ── recallPermanentPartial ──
+
+  describe("recallPermanentPartial", () => {
+    it("should partially deduct credits by userId", async () => {
       const existingAccount = makeAccount({
         type: "permanent",
         availableCredits: 200,
@@ -317,12 +423,11 @@ describe("CreditService", () => {
       const logger = makeLogger();
       const service = new CreditService(mockRepo, logger);
 
-      const input: PermanentRecallInput = {
+      const result = await service.recallPermanentPartial({
         userId: "user-uuid-1",
         credits: 50,
-      };
+      });
 
-      const result = await service.recallPermanent(input);
       expect(mockRepo.getPermanentAccountByUserId).toHaveBeenCalledWith(
         "user-uuid-1",
       );
@@ -339,7 +444,7 @@ describe("CreditService", () => {
       const service = new CreditService(mockRepo, logger);
 
       await expect(
-        service.recallPermanent({
+        service.recallPermanentPartial({
           userId: "user-uuid-1",
           credits: 50,
         }),
@@ -347,10 +452,7 @@ describe("CreditService", () => {
     });
 
     it("should throw BadRequestError if insufficient credits", async () => {
-      const existingAccount = makeAccount({
-        type: "permanent",
-        availableCredits: 10,
-      });
+      const existingAccount = makeAccount({ type: "permanent", availableCredits: 10 });
       const mockRepo = {
         getPermanentAccountByUserId: vi.fn().mockResolvedValue(existingAccount),
       } as unknown as CreditRepository;
@@ -358,7 +460,7 @@ describe("CreditService", () => {
       const service = new CreditService(mockRepo, logger);
 
       await expect(
-        service.recallPermanent({
+        service.recallPermanentPartial({
           userId: "user-uuid-1",
           credits: 50,
         }),

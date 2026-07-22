@@ -5,6 +5,7 @@ import {
   PermanentGrantInput,
   MonthlyRecallInput,
   PermanentRecallInput,
+  PartialPermanentRecallInput,
   ResetMonthlyByUserInput,
   ResetMonthlyForAllUsersInput,
   ResetMonthlyResult,
@@ -114,10 +115,67 @@ export class CreditService {
       credits: input.credits,
     });
 
+    const now = Math.floor(Date.now() / 1000);
+
+    // Check for existing permanent account
+    const existingAccount = await this.creditRepo.getPermanentAccountByUserId(
+      input.userId,
+    );
+
+    if (existingAccount) {
+      // Top up existing account
+      const newAvailable = existingAccount.availableCredits + input.credits;
+      const ledgerId = crypto.randomUUID();
+      const referenceId = crypto.randomUUID();
+
+      const ledger: CreditLedger = {
+        id: ledgerId,
+        userId: input.userId,
+        type: "grant",
+        creditsDelta: input.credits,
+        referenceType: "admin",
+        referenceId,
+        creditAccountId: existingAccount.id,
+        createdAt: now,
+      };
+
+      this.logger.info("Topping up existing permanent account", {
+        userId: input.userId,
+        accountId: existingAccount.id,
+        previousCredits: existingAccount.availableCredits,
+        additionalCredits: input.credits,
+        newAvailable,
+      });
+
+      try {
+        const result = await this.creditRepo.reGrantCredits(
+          existingAccount.id,
+          ledger,
+          input.credits,
+          newAvailable,
+          now,
+        );
+
+        this.logger.info("Permanent grant (top-up) successful", {
+          userId: input.userId,
+          accountId: existingAccount.id,
+          credits: input.credits,
+        });
+
+        return result;
+      } catch (error) {
+        this.logger.error("Failed to top up permanent credits", {
+          userId: input.userId,
+          error,
+        });
+        throw error;
+      }
+    }
+
+    // No existing account — create new
     const accountId = crypto.randomUUID();
     const ledgerId = crypto.randomUUID();
     const referenceId = crypto.randomUUID();
-    const now = Math.floor(Date.now() / 1000);
 
     const account: CreditAccount = {
       id: accountId,
@@ -252,6 +310,85 @@ export class CreditService {
   ): Promise<{ account: CreditAccount; ledger: CreditLedger }> {
     this.logger.info("Starting permanent recall", {
       userId: input.userId,
+    });
+
+    const existingAccount = await this.creditRepo.getPermanentAccountByUserId(
+      input.userId,
+    );
+
+    if (!existingAccount) {
+      this.logger.error("Permanent credit account not found", {
+        userId: input.userId,
+      });
+      throw new NotFoundError("Permanent credit account not found");
+    }
+
+    if (existingAccount.type !== "permanent") {
+      this.logger.error("Account is not a permanent account", {
+        accountId: existingAccount.id,
+        accountType: existingAccount.type,
+      });
+      throw new BadRequestError("Account is not a permanent credit account");
+    }
+
+    const remaining = existingAccount.availableCredits;
+    if (remaining <= 0) {
+      this.logger.error("No remaining credits to recall", {
+        accountId: existingAccount.id,
+        availableCredits: remaining,
+      });
+      throw new BadRequestError("No remaining credits to recall");
+    }
+
+    const ledgerId = crypto.randomUUID();
+    const referenceId = crypto.randomUUID();
+    const updatedAt = Math.floor(Date.now() / 1000);
+
+    const ledger: CreditLedger = {
+      id: ledgerId,
+      userId: input.userId,
+      type: "recall",
+      creditsDelta: -remaining,
+      referenceType: "admin",
+      referenceId,
+      creditAccountId: existingAccount.id,
+      createdAt: updatedAt,
+    };
+
+    try {
+      const result = await this.creditRepo.recallCredits(
+        existingAccount.id,
+        ledger,
+        0, // newAvailable = 0
+        updatedAt,
+      );
+
+      const account = await this.creditRepo.getAccountById(existingAccount.id);
+      if (!account) {
+        throw new NotFoundError("Credit account not found after recall");
+      }
+
+      this.logger.info("Permanent recall successful", {
+        userId: input.userId,
+        accountId: existingAccount.id,
+        recalled: remaining,
+      });
+
+      return { account, ledger: result.ledger };
+    } catch (error) {
+      this.logger.error("Failed to recall permanent credits", {
+        userId: input.userId,
+        error,
+      });
+      throw error;
+    }
+  }
+
+  async recallPermanentPartial(
+    input: PartialPermanentRecallInput,
+  ): Promise<{ account: CreditAccount; ledger: CreditLedger }> {
+    this.logger.info("Starting partial permanent recall", {
+      userId: input.userId,
       credits: input.credits,
     });
 
@@ -275,7 +412,7 @@ export class CreditService {
     }
 
     if (input.credits > existingAccount.availableCredits) {
-      this.logger.error("Insufficient credits for recall", {
+      this.logger.error("Insufficient credits for partial recall", {
         userId: input.userId,
         available: existingAccount.availableCredits,
         requested: input.credits,
@@ -315,7 +452,7 @@ export class CreditService {
         throw new NotFoundError("Credit account not found after recall");
       }
 
-      this.logger.info("Permanent recall successful", {
+      this.logger.info("Partial permanent recall successful", {
         userId: input.userId,
         accountId: existingAccount.id,
         recalled: input.credits,
@@ -324,7 +461,7 @@ export class CreditService {
 
       return { account, ledger: result.ledger };
     } catch (error) {
-      this.logger.error("Failed to recall permanent credits", {
+      this.logger.error("Failed to partially recall permanent credits", {
         userId: input.userId,
         error,
       });

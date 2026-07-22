@@ -11,6 +11,7 @@ import {
   grantPermanentSchema,
   recallMonthlySchema,
   recallPermanentSchema,
+  recallPermanentPartialSchema,
   resetMonthlyByUserSchema,
   resetMonthlyForAllUsersSchema,
 } from "../models/requestSchemas";
@@ -19,7 +20,7 @@ import {
 
 function getCreditService(c: Context<AppEnv>): CreditService {
   return new CreditService(
-    new D1CreditRepository(c.env.CREDIT_DB),
+    new D1CreditRepository(c.env.CREDIT_DB, new DefaultLogger()),
     new DefaultLogger(),
   );
 }
@@ -123,6 +124,29 @@ creditRoutes.post(
   },
 );
 
+// POST /admin/credits/recall/permanent/partial
+creditRoutes.post(
+  "/recall/permanent/partial",
+  sValidator("json", recallPermanentPartialSchema),
+  async (c) => {
+    const principalType = c.get("principalType");
+    const principalRoles = c.get("principalRoles");
+
+    await c.env.ACCESS_MGMT.authorize(
+      principalType,
+      principalRoles,
+      "credit",
+      "recall_permanent_partial",
+    );
+
+    const body = c.req.valid("json");
+    const creditService = getCreditService(c);
+    const result = await creditService.recallPermanentPartial(body);
+
+    return c.json({ data: result }, 200);
+  },
+);
+
 // POST /admin/credits/reset/monthly
 creditRoutes.post(
   "/reset/monthly",
@@ -161,8 +185,10 @@ creditRoutes.post(
       "reset_monthly_all",
     );
 
-    const creditService = getCreditService(c);
-    const creditRepo = new D1CreditRepository(c.env.CREDIT_DB);
+    const creditRepo = new D1CreditRepository(
+      c.env.CREDIT_DB,
+      new DefaultLogger(),
+    );
 
     // Compute current month period
     const now = new Date();
