@@ -34,7 +34,7 @@ paths:
                 internalError:
                   value:
                     error: InternalError
-  /admin/credits/grant/monthly:
+  /credits/grant/monthly:
     post:
       operationId: grantMonthlyCredits
       summary: Grant monthly credits to a user (300 credits, once per month)
@@ -74,7 +74,7 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
-  /admin/credits/grant/permanent:
+  /credits/grant/permanent:
     post:
       operationId: grantPermanentCredits
       summary: Grant permanent credits to a user
@@ -107,7 +107,7 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
-  /admin/credits/recall/monthly:
+  /credits/recall/monthly:
     post:
       operationId: recallMonthlyCredits
       summary: Recall all remaining monthly credits
@@ -142,7 +142,7 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
-  /admin/credits/recall/permanent:
+  /credits/recall/permanent:
     post:
       operationId: recallPermanentCredits
       summary: Fully recall all remaining permanent credits (looked up by userId)
@@ -174,7 +174,7 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
-  /admin/credits/recall/permanent/partial:
+  /credits/recall/permanent/partial:
     post:
       operationId: recallPermanentCreditsPartial
       summary: Partially recall a specific amount of permanent credits (looked up by userId)
@@ -209,7 +209,7 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
-  /admin/credits/reset/monthly:
+  /credits/reset/monthly:
     post:
       operationId: resetMonthlyCredits
       summary: Enqueue a user's monthly credit reset
@@ -240,7 +240,7 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
-  /admin/credits/reset/monthly-all:
+  /credits/reset/monthly-all:
     post:
       operationId: resetMonthlyCreditsForAllUsers
       summary: Enqueue monthly credit resets for all users
@@ -261,6 +261,32 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/QueuedAllResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /credits/user/{userId}:
+    get:
+      operationId: getUserCredits
+      summary: Get credit information for a specific user
+      description: Returns the current month's monthly credits and permanent credits for the given user.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: The UUID of the user
+      responses:
+        "200":
+          description: User credit information retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserCreditsResponse"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -388,6 +414,21 @@ components:
             status:
               type: string
               enum: [queued]
+    UserCreditsResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            userId:
+              type: string
+              format: uuid
+            monthlyCredits:
+              type: integer
+              description: Current month's available monthly credits
+            permanentCredits:
+              type: integer
+              description: Current available permanent credits
   responses:
     BadRequest:
       description: Bad Request

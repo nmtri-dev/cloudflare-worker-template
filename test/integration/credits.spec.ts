@@ -26,6 +26,24 @@ async function post(
   return { status: res.status, data: json };
 }
 
+async function get(
+  path: string,
+  authHeader?: string,
+): Promise<{ status: number; data: unknown }> {
+  const headers: Record<string, string> = {};
+  if (authHeader) {
+    headers["Authorization"] = authHeader;
+  }
+
+  const res = await SELF.fetch(`http://localhost${path}`, {
+    method: "GET",
+    headers,
+  });
+
+  const json = await res.json<Record<string, unknown>>();
+  return { status: res.status, data: json };
+}
+
 let authHeader: string;
 
 beforeAll(async () => {
@@ -42,10 +60,10 @@ beforeAll(async () => {
   authHeader = await getAuthorizationHeader("user", ["admin"]);
 });
 
-describe("POST /admin/credits/grant/monthly", () => {
+describe("POST /credits/grant/monthly", () => {
   it("should return 201 with 300 credits on success", async () => {
     const { status, data } = await post(
-      "/admin/credits/grant/monthly",
+      "/credits/grant/monthly",
       {
         userId: "550e8400-e29b-41d4-a716-446655440000",
         year: 2026,
@@ -65,7 +83,7 @@ describe("POST /admin/credits/grant/monthly", () => {
   });
 
   it("should return 401 when auth is missing", async () => {
-    const { status } = await post("/admin/credits/grant/monthly", {
+    const { status } = await post("/credits/grant/monthly", {
       userId: "550e8400-e29b-41d4-a716-446655440001",
       year: 2026,
       month: 7,
@@ -76,7 +94,7 @@ describe("POST /admin/credits/grant/monthly", () => {
 
   it("should return 400 for invalid body", async () => {
     const { status } = await post(
-      "/admin/credits/grant/monthly",
+      "/credits/grant/monthly",
       {
         userId: "not-a-uuid",
         year: 1999,
@@ -93,7 +111,7 @@ describe("POST /admin/credits/grant/monthly", () => {
 
     // Grant
     const grantResult = await post(
-      "/admin/credits/grant/monthly",
+      "/credits/grant/monthly",
       { userId, year: 2026, month: 8 },
       authHeader,
     );
@@ -104,7 +122,7 @@ describe("POST /admin/credits/grant/monthly", () => {
 
     // Recall all
     const recallResult = await post(
-      "/admin/credits/recall/monthly",
+      "/credits/recall/monthly",
       { userId, creditAccountId },
       authHeader,
     );
@@ -112,7 +130,7 @@ describe("POST /admin/credits/grant/monthly", () => {
 
     // Try to re-grant - should fail even though credits = 0
     const reGrantResult = await post(
-      "/admin/credits/grant/monthly",
+      "/credits/grant/monthly",
       { userId, year: 2026, month: 8 },
       authHeader,
     );
@@ -125,7 +143,7 @@ describe("POST /admin/credits/grant/monthly", () => {
 
     // First grant
     const firstGrant = await post(
-      "/admin/credits/grant/monthly",
+      "/credits/grant/monthly",
       { userId, year: 2026, month: 9 },
       authHeader,
     );
@@ -133,7 +151,7 @@ describe("POST /admin/credits/grant/monthly", () => {
 
     // Duplicate attempt - should fail
     const { status, data } = await post(
-      "/admin/credits/grant/monthly",
+      "/credits/grant/monthly",
       { userId, year: 2026, month: 9 },
       authHeader,
     );
@@ -143,11 +161,11 @@ describe("POST /admin/credits/grant/monthly", () => {
   });
 });
 
-describe("POST /admin/credits/grant/permanent", () => {
+describe("POST /credits/grant/permanent", () => {
   it("should return 201 with account and ledger on first grant", async () => {
     const userId = "550e8400-e29b-41d4-a716-44665544a001";
     const { status, data } = await post(
-      "/admin/credits/grant/permanent",
+      "/credits/grant/permanent",
       {
         userId,
         credits: 100,
@@ -171,7 +189,7 @@ describe("POST /admin/credits/grant/permanent", () => {
 
     // First grant
     const firstGrant = await post(
-      "/admin/credits/grant/permanent",
+      "/credits/grant/permanent",
       { userId, credits: 100 },
       authHeader,
     );
@@ -179,7 +197,7 @@ describe("POST /admin/credits/grant/permanent", () => {
 
     // Second grant — should top up
     const { status, data } = await post(
-      "/admin/credits/grant/permanent",
+      "/credits/grant/permanent",
       { userId, credits: 50 },
       authHeader,
     );
@@ -195,13 +213,13 @@ describe("POST /admin/credits/grant/permanent", () => {
   });
 });
 
-describe("POST /admin/credits/recall/monthly", () => {
+describe("POST /credits/recall/monthly", () => {
   it("should return 200 and set availableCredits to 0", async () => {
     const userId = "550e8400-e29b-41d4-a716-446655440004";
 
     // Grant first
     const grantResult = await post(
-      "/admin/credits/grant/monthly",
+      "/credits/grant/monthly",
       { userId, credits: 40, year: 2026, month: 10 },
       authHeader,
     );
@@ -210,7 +228,7 @@ describe("POST /admin/credits/recall/monthly", () => {
 
     // Recall
     const { status, data } = await post(
-      "/admin/credits/recall/monthly",
+      "/credits/recall/monthly",
       { userId, creditAccountId },
       authHeader,
     );
@@ -223,7 +241,7 @@ describe("POST /admin/credits/recall/monthly", () => {
 
   it("should return 404 for non-existent account", async () => {
     const { status, data } = await post(
-      "/admin/credits/recall/monthly",
+      "/credits/recall/monthly",
       {
         userId: "550e8400-e29b-41d4-a716-446655440000",
         creditAccountId: "550e8400-e29b-41d4-a716-446655449999",
@@ -236,20 +254,20 @@ describe("POST /admin/credits/recall/monthly", () => {
   });
 });
 
-describe("POST /admin/credits/recall/permanent", () => {
+describe("POST /credits/recall/permanent", () => {
   it("should return 200 and fully recall all remaining credits", async () => {
     const userId = "550e8400-e29b-41d4-a716-446655440005";
 
     // Grant permanent
     await post(
-      "/admin/credits/grant/permanent",
+      "/credits/grant/permanent",
       { userId, credits: 200 },
       authHeader,
     );
 
     // Full recall
     const { status, data } = await post(
-      "/admin/credits/recall/permanent",
+      "/credits/recall/permanent",
       { userId },
       authHeader,
     );
@@ -262,7 +280,7 @@ describe("POST /admin/credits/recall/permanent", () => {
 
   it("should return 404 when no permanent account exists", async () => {
     const { status, data } = await post(
-      "/admin/credits/recall/permanent",
+      "/credits/recall/permanent",
       { userId: "550e8400-e29b-41d4-a716-446655449998" },
       authHeader,
     );
@@ -272,20 +290,20 @@ describe("POST /admin/credits/recall/permanent", () => {
   });
 });
 
-describe("POST /admin/credits/recall/permanent/partial", () => {
+describe("POST /credits/recall/permanent/partial", () => {
   it("should return 200 for partial recall", async () => {
     const userId = "550e8400-e29b-41d4-a716-446655440007";
 
     // Grant permanent
     await post(
-      "/admin/credits/grant/permanent",
+      "/credits/grant/permanent",
       { userId, credits: 200 },
       authHeader,
     );
 
     // Partial recall
     const { status, data } = await post(
-      "/admin/credits/recall/permanent/partial",
+      "/credits/recall/permanent/partial",
       { userId, credits: 50 },
       authHeader,
     );
@@ -303,14 +321,14 @@ describe("POST /admin/credits/recall/permanent/partial", () => {
 
     // Grant permanent
     await post(
-      "/admin/credits/grant/permanent",
+      "/credits/grant/permanent",
       { userId, credits: 30 },
       authHeader,
     );
 
     // Try to recall more than available
     const { status, data } = await post(
-      "/admin/credits/recall/permanent/partial",
+      "/credits/recall/permanent/partial",
       { userId, credits: 100 },
       authHeader,
     );
@@ -320,13 +338,13 @@ describe("POST /admin/credits/recall/permanent/partial", () => {
   });
 });
 
-describe("POST /admin/credits/reset/monthly", () => {
+describe("POST /credits/reset/monthly", () => {
   it("should return 202 and queued status for a specific user", async () => {
     const userId = "550e8400-e29b-41d4-a716-446655440010";
 
     // Grant monthly credits
     const grantResult = await post(
-      "/admin/credits/grant/monthly",
+      "/credits/grant/monthly",
       { userId, year: 2026, month: 7 },
       authHeader,
     );
@@ -334,7 +352,7 @@ describe("POST /admin/credits/reset/monthly", () => {
 
     // Reset — should return 202 Accepted
     const { status, data } = await post(
-      "/admin/credits/reset/monthly",
+      "/credits/reset/monthly",
       { userId },
       authHeader,
     );
@@ -351,7 +369,7 @@ describe("POST /admin/credits/reset/monthly", () => {
     const userId = "550e8400-e29b-41d4-a716-446655440011";
 
     const { status, data } = await post(
-      "/admin/credits/reset/monthly",
+      "/credits/reset/monthly",
       { userId },
       authHeader,
     );
@@ -364,7 +382,7 @@ describe("POST /admin/credits/reset/monthly", () => {
 
   it("should return 401 when auth is missing", async () => {
     const { status } = await post(
-      "/admin/credits/reset/monthly",
+      "/credits/reset/monthly",
       { userId: "550e8400-e29b-41d4-a716-446655440012" },
     );
 
@@ -372,26 +390,26 @@ describe("POST /admin/credits/reset/monthly", () => {
   });
 });
 
-describe("POST /admin/credits/reset/monthly-all", () => {
+describe("POST /credits/reset/monthly-all", () => {
   it("should return 202 and enqueue resets for all users", async () => {
     const userId1 = "550e8400-e29b-41d4-a716-446655440020";
     const userId2 = "550e8400-e29b-41d4-a716-446655440021";
 
     // Grant for two users
     await post(
-      "/admin/credits/grant/monthly",
+      "/credits/grant/monthly",
       { userId: userId1, year: 2026, month: 7 },
       authHeader,
     );
     await post(
-      "/admin/credits/grant/monthly",
+      "/credits/grant/monthly",
       { userId: userId2, year: 2026, month: 7 },
       authHeader,
     );
 
     // Reset all
     const { status, data } = await post(
-      "/admin/credits/reset/monthly-all",
+      "/credits/reset/monthly-all",
       {},
       authHeader,
     );
@@ -407,9 +425,111 @@ describe("POST /admin/credits/reset/monthly-all", () => {
 
   it("should return 401 when auth is missing", async () => {
     const { status } = await post(
-      "/admin/credits/reset/monthly-all",
+      "/credits/reset/monthly-all",
       {},
     );
+
+    expect(status).toBe(401);
+  });
+});
+
+describe("GET /credits/user/:userId", () => {
+  it("should return 200 with monthly and permanent credits for a user with both", async () => {
+    const userId = "550e8400-e29b-41d4-a716-446655440100";
+
+    // Grant monthly credits
+    await post(
+      "/credits/grant/monthly",
+      { userId, year: 2026, month: 7 },
+      authHeader,
+    );
+
+    // Grant permanent credits
+    await post(
+      "/credits/grant/permanent",
+      { userId, credits: 500 },
+      authHeader,
+    );
+
+    const { status, data } = await get(
+      `/credits/user/${userId}`,
+      authHeader,
+    );
+
+    expect(status).toBe(200);
+    const d = data as Record<string, unknown>;
+    expect(d.data).toBeDefined();
+    const inner = d.data as Record<string, unknown>;
+    expect(inner.userId).toBe(userId);
+    expect(inner.monthlyCredits).toBe(300);
+    expect(inner.permanentCredits).toBe(500);
+  });
+
+  it("should return 200 with 0 for both when user has no accounts", async () => {
+    const userId = "550e8400-e29b-41d4-a716-446655440101";
+
+    const { status, data } = await get(
+      `/credits/user/${userId}`,
+      authHeader,
+    );
+
+    expect(status).toBe(200);
+    const d = data as Record<string, unknown>;
+    expect(d.data).toBeDefined();
+    const inner = d.data as Record<string, unknown>;
+    expect(inner.userId).toBe(userId);
+    expect(inner.monthlyCredits).toBe(0);
+    expect(inner.permanentCredits).toBe(0);
+  });
+
+  it("should return 200 with only monthly credits when only monthly account exists", async () => {
+    const userId = "550e8400-e29b-41d4-a716-446655440102";
+
+    // Grant monthly credits
+    await post(
+      "/credits/grant/monthly",
+      { userId, year: 2026, month: 7 },
+      authHeader,
+    );
+
+    const { status, data } = await get(
+      `/credits/user/${userId}`,
+      authHeader,
+    );
+
+    expect(status).toBe(200);
+    const inner = (data as Record<string, unknown>).data as Record<string, unknown>;
+    expect(inner.userId).toBe(userId);
+    expect(inner.monthlyCredits).toBe(300);
+    expect(inner.permanentCredits).toBe(0);
+  });
+
+  it("should return 200 with only permanent credits when only permanent account exists", async () => {
+    const userId = "550e8400-e29b-41d4-a716-446655440103";
+
+    // Grant permanent credits
+    await post(
+      "/credits/grant/permanent",
+      { userId, credits: 200 },
+      authHeader,
+    );
+
+    const { status, data } = await get(
+      `/credits/user/${userId}`,
+      authHeader,
+    );
+
+    expect(status).toBe(200);
+    const inner = (data as Record<string, unknown>).data as Record<string, unknown>;
+    expect(inner.userId).toBe(userId);
+    expect(inner.monthlyCredits).toBe(0);
+    expect(inner.permanentCredits).toBe(200);
+  });
+
+  it("should return 401 when auth is missing", async () => {
+    const userId = "550e8400-e29b-41d4-a716-446655440104";
+
+    const { status } = await get(`/credits/user/${userId}`);
 
     expect(status).toBe(401);
   });

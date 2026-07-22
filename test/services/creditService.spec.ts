@@ -13,6 +13,7 @@ import {
   NotFoundError,
   ConflictError,
   ForbiddenError,
+  UserCreditsResult,
 } from "../../src/core/domain";
 
 // ── Helpers ──
@@ -70,6 +71,8 @@ describe("CreditService", () => {
 
       const input: MonthlyGrantInput = {
         userId: "user-uuid-1",
+        referenceType: "admin",
+        referenceId: "ref-uuid-1",
         year: 2026,
         month: 7, // July
       };
@@ -105,6 +108,8 @@ describe("CreditService", () => {
 
       const input: MonthlyGrantInput = {
         userId: "user-uuid-1",
+        referenceType: "admin",
+        referenceId: "ref-uuid-1",
         year: 2026,
         month: 7,
       };
@@ -128,6 +133,8 @@ describe("CreditService", () => {
 
       const input: MonthlyGrantInput = {
         userId: "user-uuid-1",
+        referenceType: "admin",
+        referenceId: "ref-uuid-1",
         year: 2026,
         month: 7,
       };
@@ -156,6 +163,8 @@ describe("CreditService", () => {
 
       const input: PermanentGrantInput = {
         userId: "user-uuid-1",
+        referenceType: "admin",
+        referenceId: "ref-uuid-1",
         credits: 200,
       };
 
@@ -199,6 +208,8 @@ describe("CreditService", () => {
 
       const result = await service.grantPermanent({
         userId: "user-uuid-1",
+          referenceType: "admin",
+          referenceId: "ref-uuid-1",
         credits: 200,
       });
 
@@ -225,6 +236,8 @@ describe("CreditService", () => {
 
       const result = await service.grantPermanent({
         userId: "user-uuid-1",
+          referenceType: "admin",
+          referenceId: "ref-uuid-1",
         credits: 9999,
       });
 
@@ -255,6 +268,8 @@ describe("CreditService", () => {
 
       const input: MonthlyRecallInput = {
         userId: "user-uuid-1",
+        referenceType: "admin",
+        referenceId: "ref-uuid-1",
         creditAccountId: "account-uuid-1",
       };
 
@@ -274,6 +289,8 @@ describe("CreditService", () => {
       await expect(
         service.recallMonthly({
           userId: "user-uuid-1",
+          referenceType: "admin",
+          referenceId: "ref-uuid-1",
           creditAccountId: "missing-uuid",
         }),
       ).rejects.toThrow(NotFoundError);
@@ -290,6 +307,8 @@ describe("CreditService", () => {
       await expect(
         service.recallMonthly({
           userId: "user-uuid-1",
+          referenceType: "admin",
+          referenceId: "ref-uuid-1",
           creditAccountId: "account-uuid-1",
         }),
       ).rejects.toThrow(ForbiddenError);
@@ -306,6 +325,8 @@ describe("CreditService", () => {
       await expect(
         service.recallMonthly({
           userId: "user-uuid-1",
+          referenceType: "admin",
+          referenceId: "ref-uuid-1",
           creditAccountId: "account-uuid-1",
         }),
       ).rejects.toThrow(BadRequestError);
@@ -322,6 +343,8 @@ describe("CreditService", () => {
       await expect(
         service.recallMonthly({
           userId: "user-uuid-1",
+          referenceType: "admin",
+          referenceId: "ref-uuid-1",
           creditAccountId: "account-uuid-1",
         }),
       ).rejects.toThrow(BadRequestError);
@@ -357,6 +380,8 @@ describe("CreditService", () => {
 
       const result = await service.recallPermanent({
         userId: "user-uuid-1",
+        referenceType: "admin",
+        referenceId: "ref-uuid-1",
       });
 
       expect(mockRepo.getPermanentAccountByUserId).toHaveBeenCalledWith(
@@ -375,7 +400,9 @@ describe("CreditService", () => {
       const service = new CreditService(mockRepo, logger);
 
       await expect(
-        service.recallPermanent({ userId: "user-uuid-1" }),
+        service.recallPermanent({ userId: "user-uuid-1",
+          referenceType: "admin",
+          referenceId: "ref-uuid-1" }),
       ).rejects.toThrow(NotFoundError);
     });
 
@@ -391,7 +418,9 @@ describe("CreditService", () => {
       const service = new CreditService(mockRepo, logger);
 
       await expect(
-        service.recallPermanent({ userId: "user-uuid-1" }),
+        service.recallPermanent({ userId: "user-uuid-1",
+          referenceType: "admin",
+          referenceId: "ref-uuid-1" }),
       ).rejects.toThrow(BadRequestError);
     });
   });
@@ -425,6 +454,8 @@ describe("CreditService", () => {
 
       const result = await service.recallPermanentPartial({
         userId: "user-uuid-1",
+          referenceType: "admin",
+          referenceId: "ref-uuid-1",
         credits: 50,
       });
 
@@ -446,6 +477,8 @@ describe("CreditService", () => {
       await expect(
         service.recallPermanentPartial({
           userId: "user-uuid-1",
+          referenceType: "admin",
+          referenceId: "ref-uuid-1",
           credits: 50,
         }),
       ).rejects.toThrow(NotFoundError);
@@ -462,6 +495,8 @@ describe("CreditService", () => {
       await expect(
         service.recallPermanentPartial({
           userId: "user-uuid-1",
+          referenceType: "admin",
+          referenceId: "ref-uuid-1",
           credits: 50,
         }),
       ).rejects.toThrow(BadRequestError);
@@ -497,6 +532,8 @@ describe("CreditService", () => {
 
       const result = await service.resetMonthlyByUser({
         userId: "user-uuid-1",
+        referenceType: "admin",
+        referenceId: "ref-uuid-1",
       });
 
       expect(result.accountsReset).toBe(1);
@@ -522,6 +559,8 @@ describe("CreditService", () => {
 
       const result = await service.resetMonthlyByUser({
         userId: "user-uuid-1",
+        referenceType: "admin",
+        referenceId: "ref-uuid-1",
       });
 
       expect(result.accountsReset).toBe(0);
@@ -537,6 +576,8 @@ describe("CreditService", () => {
 
       const result = await service.resetMonthlyByUser({
         userId: "user-uuid-1",
+        referenceType: "admin",
+        referenceId: "ref-uuid-1",
       });
 
       expect(result.accountsReset).toBe(0);
@@ -569,7 +610,7 @@ describe("CreditService", () => {
       const logger = makeLogger();
       const service = new CreditService(mockRepo, logger);
 
-      const result = await service.resetMonthlyForAllUsers({});
+      const result = await service.resetMonthlyForAllUsers({ referenceType: "admin", referenceId: "ref-uuid-1" });
 
       expect(result.accountsReset).toBe(2);
       expect(result.ledgers).toHaveLength(2);
@@ -600,7 +641,7 @@ describe("CreditService", () => {
       const logger = makeLogger();
       const service = new CreditService(mockRepo, logger);
 
-      const result = await service.resetMonthlyForAllUsers({});
+      const result = await service.resetMonthlyForAllUsers({ referenceType: "admin", referenceId: "ref-uuid-1" });
 
       expect(result.accountsReset).toBe(1); // Only account1 was refilled
       expect(result.ledgers).toHaveLength(1);
@@ -614,10 +655,117 @@ describe("CreditService", () => {
       const logger = makeLogger();
       const service = new CreditService(mockRepo, logger);
 
-      const result = await service.resetMonthlyForAllUsers({});
+      const result = await service.resetMonthlyForAllUsers({ referenceType: "admin", referenceId: "ref-uuid-1" });
 
       expect(result.accountsReset).toBe(0);
       expect(result.ledgers).toHaveLength(0);
+    });
+  });
+
+  // ── getUserCredits ──
+
+  describe("getUserCredits", () => {
+    it("should return monthly and permanent credits for a user with both accounts", async () => {
+      const monthlyAccount = makeAccount({
+        type: "monthly",
+        userId: "user-uuid-1",
+        availableCredits: 250,
+      });
+      const permanentAccount = makeAccount({
+        type: "permanent",
+        userId: "user-uuid-1",
+        availableCredits: 500,
+        effectiveFrom: null,
+        expiredAt: null,
+      });
+
+      const mockRepo = {
+        getMonthlyAccountByUserAndPeriod: vi
+          .fn()
+          .mockResolvedValue(monthlyAccount),
+        getPermanentAccountByUserId: vi
+          .fn()
+          .mockResolvedValue(permanentAccount),
+      } as unknown as CreditRepository;
+      const logger = makeLogger();
+      const service = new CreditService(mockRepo, logger);
+
+      const result = await service.getUserCredits("user-uuid-1");
+
+      expect(result).toEqual<UserCreditsResult>({
+        userId: "user-uuid-1",
+        monthlyCredits: 250,
+        permanentCredits: 500,
+      });
+    });
+
+    it("should return 0 for both when user has no accounts", async () => {
+      const mockRepo = {
+        getMonthlyAccountByUserAndPeriod: vi.fn().mockResolvedValue(null),
+        getPermanentAccountByUserId: vi.fn().mockResolvedValue(null),
+      } as unknown as CreditRepository;
+      const logger = makeLogger();
+      const service = new CreditService(mockRepo, logger);
+
+      const result = await service.getUserCredits("user-uuid-1");
+
+      expect(result).toEqual<UserCreditsResult>({
+        userId: "user-uuid-1",
+        monthlyCredits: 0,
+        permanentCredits: 0,
+      });
+    });
+
+    it("should return monthly credits but 0 permanent when only monthly account exists", async () => {
+      const monthlyAccount = makeAccount({
+        type: "monthly",
+        userId: "user-uuid-1",
+        availableCredits: 300,
+      });
+
+      const mockRepo = {
+        getMonthlyAccountByUserAndPeriod: vi
+          .fn()
+          .mockResolvedValue(monthlyAccount),
+        getPermanentAccountByUserId: vi.fn().mockResolvedValue(null),
+      } as unknown as CreditRepository;
+      const logger = makeLogger();
+      const service = new CreditService(mockRepo, logger);
+
+      const result = await service.getUserCredits("user-uuid-1");
+
+      expect(result).toEqual<UserCreditsResult>({
+        userId: "user-uuid-1",
+        monthlyCredits: 300,
+        permanentCredits: 0,
+      });
+    });
+
+    it("should return permanent credits but 0 monthly when only permanent account exists", async () => {
+      const permanentAccount = makeAccount({
+        type: "permanent",
+        userId: "user-uuid-1",
+        availableCredits: 100,
+        effectiveFrom: null,
+        expiredAt: null,
+      });
+
+      const mockRepo = {
+        getMonthlyAccountByUserAndPeriod: vi.fn().mockResolvedValue(null),
+        getPermanentAccountByUserId: vi
+          .fn()
+          .mockResolvedValue(permanentAccount),
+      } as unknown as CreditRepository;
+      const logger = makeLogger();
+      const service = new CreditService(mockRepo, logger);
+
+      const result = await service.getUserCredits("user-uuid-1");
+
+      expect(result).toEqual<UserCreditsResult>({
+        userId: "user-uuid-1",
+        monthlyCredits: 0,
+        permanentCredits: 100,
+      });
     });
   });
 });

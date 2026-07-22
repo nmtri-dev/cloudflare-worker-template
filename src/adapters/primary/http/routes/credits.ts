@@ -49,7 +49,11 @@ creditRoutes.post(
 
     const body = c.req.valid("json");
     const creditService = getCreditService(c);
-    const result = await creditService.grantMonthly(body);
+    const result = await creditService.grantMonthly({
+      ...body,
+      referenceType: "admin",
+      referenceId: c.get("principalId"),
+    });
 
     return c.json({ data: result }, 201);
   },
@@ -72,7 +76,11 @@ creditRoutes.post(
 
     const body = c.req.valid("json");
     const creditService = getCreditService(c);
-    const result = await creditService.grantPermanent(body);
+    const result = await creditService.grantPermanent({
+      ...body,
+      referenceType: "admin",
+      referenceId: c.get("principalId"),
+    });
 
     return c.json({ data: result }, 201);
   },
@@ -95,7 +103,11 @@ creditRoutes.post(
 
     const body = c.req.valid("json");
     const creditService = getCreditService(c);
-    const result = await creditService.recallMonthly(body);
+    const result = await creditService.recallMonthly({
+      ...body,
+      referenceType: "admin",
+      referenceId: c.get("principalId"),
+    });
 
     return c.json({ data: result }, 200);
   },
@@ -118,7 +130,11 @@ creditRoutes.post(
 
     const body = c.req.valid("json");
     const creditService = getCreditService(c);
-    const result = await creditService.recallPermanent(body);
+    const result = await creditService.recallPermanent({
+      ...body,
+      referenceType: "admin",
+      referenceId: c.get("principalId"),
+    });
 
     return c.json({ data: result }, 200);
   },
@@ -141,7 +157,11 @@ creditRoutes.post(
 
     const body = c.req.valid("json");
     const creditService = getCreditService(c);
-    const result = await creditService.recallPermanentPartial(body);
+    const result = await creditService.recallPermanentPartial({
+      ...body,
+      referenceType: "admin",
+      referenceId: c.get("principalId"),
+    });
 
     return c.json({ data: result }, 200);
   },
@@ -164,7 +184,11 @@ creditRoutes.post(
 
     const { userId } = c.req.valid("json");
 
-    await c.env.CREDIT_RESET_QUEUE.send({ userId });
+    await c.env.CREDIT_RESET_QUEUE.send({
+      userId,
+      referenceType: "admin",
+      referenceId: c.get("principalId"),
+    });
 
     return c.json({ data: { userId, status: "queued" } }, 202);
   },
@@ -206,18 +230,44 @@ creditRoutes.post(
       expiredAt,
     );
 
-    // Enqueue each user's reset
-    const enqueued: string[] = [];
-    for (const account of accounts) {
-      await c.env.CREDIT_RESET_QUEUE.send({ userId: account.userId });
-      enqueued.push(account.userId);
+    // Enqueue each user's reset in chunks of 50
+    const CHUNK_SIZE = 50;
+    const bodies = accounts.map((account) => ({
+      body: {
+        userId: account.userId,
+        referenceType: "admin" as const,
+        referenceId: c.get("principalId"),
+      },
+    }));
+    for (let i = 0; i < bodies.length; i += CHUNK_SIZE) {
+      await c.env.CREDIT_RESET_QUEUE.sendBatch(bodies.slice(i, i + CHUNK_SIZE));
     }
 
     return c.json(
-      { data: { enqueuedCount: enqueued.length, status: "queued" } },
+      { data: { enqueuedCount: accounts.length, status: "queued" } },
       202,
     );
   },
 );
+
+// GET /credits/user/:userId
+creditRoutes.get("/user/:userId", async (c) => {
+  const principalType = c.get("principalType");
+  const principalRoles = c.get("principalRoles");
+
+  await c.env.ACCESS_MGMT.authorize(
+    principalType,
+    principalRoles,
+    "credit",
+    "read",
+  );
+
+  const userId = c.req.param("userId");
+
+  const creditService = getCreditService(c);
+  const result = await creditService.getUserCredits(userId);
+
+  return c.json({ data: result }, 200);
+});
 
 export { creditRoutes };

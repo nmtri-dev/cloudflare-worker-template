@@ -39,34 +39,57 @@ export interface MonthlyGrantInput {
   userId: string;
   year: number;
   month: number; // 1–12
+  referenceType: CreditReferenceType;
+  referenceId: string;
 }
 
 export interface PermanentGrantInput {
   userId: string;
   credits: number;
+  referenceType: CreditReferenceType;
+  referenceId: string;
 }
 
 export interface MonthlyRecallInput {
   userId: string;
   creditAccountId: string;
+  referenceType: CreditReferenceType;
+  referenceId: string;
 }
 
 export interface PermanentRecallInput {
   userId: string;
+  referenceType: CreditReferenceType;
+  referenceId: string;
 }
 
 export interface PartialPermanentRecallInput {
   userId: string;
   credits: number;
+  referenceType: CreditReferenceType;
+  referenceId: string;
 }
 
 export interface ResetMonthlyByUserInput {
   userId: string;
+  referenceType: CreditReferenceType;
+  referenceId: string;
 }
 
-export interface ResetMonthlyForAllUsersInput {}
+export interface ResetMonthlyForAllUsersInput {
+  referenceType: CreditReferenceType;
+  referenceId: string;
+}
 
 export interface ResetMonthlyResult {
   accountsReset: number;
   ledgers: CreditLedger[];
+}
+
+// ── Query result shapes ──
+
+export interface UserCreditsResult {
+  userId: string;
+  monthlyCredits: number;
+  permanentCredits: number;
 }

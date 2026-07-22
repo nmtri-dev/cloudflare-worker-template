@@ -9,6 +9,7 @@ import {
   ResetMonthlyByUserInput,
   ResetMonthlyForAllUsersInput,
   ResetMonthlyResult,
+  UserCreditsResult,
   CreditReferenceType,
   BadRequestError,
   NotFoundError,
@@ -66,7 +67,7 @@ export class CreditService {
     // No existing account — create new
     const accountId = crypto.randomUUID();
     const ledgerId = crypto.randomUUID();
-    const referenceId = crypto.randomUUID();
+    const referenceId = input.referenceId;
     const now = Math.floor(Date.now() / 1000);
 
     const account: CreditAccount = {
@@ -84,7 +85,7 @@ export class CreditService {
       userId: input.userId,
       type: "grant",
       creditsDelta: MONTHLY_CREDIT_AMOUNT,
-      referenceType: "admin",
+      referenceType: input.referenceType,
       referenceId,
       creditAccountId: accountId,
       createdAt: now,
@@ -126,14 +127,14 @@ export class CreditService {
       // Top up existing account
       const newAvailable = existingAccount.availableCredits + input.credits;
       const ledgerId = crypto.randomUUID();
-      const referenceId = crypto.randomUUID();
+      const referenceId = input.referenceId;
 
       const ledger: CreditLedger = {
         id: ledgerId,
         userId: input.userId,
         type: "grant",
         creditsDelta: input.credits,
-        referenceType: "admin",
+        referenceType: input.referenceType,
         referenceId,
         creditAccountId: existingAccount.id,
         createdAt: now,
@@ -175,7 +176,7 @@ export class CreditService {
     // No existing account — create new
     const accountId = crypto.randomUUID();
     const ledgerId = crypto.randomUUID();
-    const referenceId = crypto.randomUUID();
+    const referenceId = input.referenceId;
 
     const account: CreditAccount = {
       id: accountId,
@@ -192,7 +193,7 @@ export class CreditService {
       userId: input.userId,
       type: "grant",
       creditsDelta: input.credits,
-      referenceType: "admin",
+      referenceType: input.referenceType,
       referenceId,
       creditAccountId: accountId,
       createdAt: now,
@@ -261,7 +262,7 @@ export class CreditService {
     }
 
     const ledgerId = crypto.randomUUID();
-    const referenceId = crypto.randomUUID();
+    const referenceId = input.referenceId;
     const updatedAt = Math.floor(Date.now() / 1000);
 
     const ledger: CreditLedger = {
@@ -269,7 +270,7 @@ export class CreditService {
       userId: input.userId,
       type: "recall",
       creditsDelta: -remaining,
-      referenceType: "admin",
+      referenceType: input.referenceType,
       referenceId,
       creditAccountId: existingAccount.id,
       createdAt: updatedAt,
@@ -341,7 +342,7 @@ export class CreditService {
     }
 
     const ledgerId = crypto.randomUUID();
-    const referenceId = crypto.randomUUID();
+    const referenceId = input.referenceId;
     const updatedAt = Math.floor(Date.now() / 1000);
 
     const ledger: CreditLedger = {
@@ -349,7 +350,7 @@ export class CreditService {
       userId: input.userId,
       type: "recall",
       creditsDelta: -remaining,
-      referenceType: "admin",
+      referenceType: input.referenceType,
       referenceId,
       creditAccountId: existingAccount.id,
       createdAt: updatedAt,
@@ -423,7 +424,7 @@ export class CreditService {
     }
 
     const ledgerId = crypto.randomUUID();
-    const referenceId = crypto.randomUUID();
+    const referenceId = input.referenceId;
     const updatedAt = Math.floor(Date.now() / 1000);
 
     const ledger: CreditLedger = {
@@ -431,7 +432,7 @@ export class CreditService {
       userId: input.userId,
       type: "recall",
       creditsDelta: -input.credits,
-      referenceType: "admin",
+      referenceType: input.referenceType,
       referenceId,
       creditAccountId: existingAccount.id,
       createdAt: updatedAt,
@@ -515,14 +516,14 @@ export class CreditService {
 
     const updatedAt = Math.floor(Date.now() / 1000);
     const ledgerId = crypto.randomUUID();
-    const referenceId = crypto.randomUUID();
+    const referenceId = input.referenceId;
 
     const ledger: CreditLedger = {
       id: ledgerId,
       userId: input.userId,
       type: "grant",
       creditsDelta: refillAmount,
-      referenceType: "admin",
+      referenceType: input.referenceType,
       referenceId,
       creditAccountId: existingAccount.id,
       createdAt: updatedAt,
@@ -593,14 +594,14 @@ export class CreditService {
       if (refillAmount <= 0) continue; // Already at max, skip
 
       const ledgerId = crypto.randomUUID();
-      const referenceId = crypto.randomUUID();
+      const referenceId = _input.referenceId;
 
       const ledger: CreditLedger = {
         id: ledgerId,
         userId: account.userId,
         type: "grant",
         creditsDelta: refillAmount,
-        referenceType: "admin",
+        referenceType: _input.referenceType,
         referenceId,
         creditAccountId: account.id,
         createdAt: updatedAt,
@@ -633,5 +634,45 @@ export class CreditService {
     });
 
     return { accountsReset, ledgers };
+  }
+
+  async getUserCredits(userId: string): Promise<UserCreditsResult> {
+    this.logger.info("Getting credits for user", { userId });
+
+    // Compute current month period (1st of month → last day of month)
+    const now = new Date();
+    const effectiveFrom = Math.floor(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1) / 1000,
+    );
+    const expiredAt = Math.floor(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0, 23, 59, 59) /
+        1000,
+    );
+
+    // Fetch monthly and permanent accounts in parallel
+    const [monthlyAccount, permanentAccount] = await Promise.all([
+      this.creditRepo.getMonthlyAccountByUserAndPeriod(
+        userId,
+        effectiveFrom,
+        expiredAt,
+      ),
+      this.creditRepo.getPermanentAccountByUserId(userId),
+    ]);
+
+    const result: UserCreditsResult = {
+      userId,
+      monthlyCredits: monthlyAccount ? monthlyAccount.availableCredits : 0,
+      permanentCredits: permanentAccount
+        ? permanentAccount.availableCredits
+        : 0,
+    };
+
+    this.logger.info("Credits retrieved for user", {
+      userId,
+      monthlyCredits: result.monthlyCredits,
+      permanentCredits: result.permanentCredits,
+    });
+
+    return result;
   }
 }

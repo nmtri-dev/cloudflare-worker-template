@@ -41,7 +41,7 @@ async function getPrivateKey(): Promise<CryptoKey> {
 
 export async function generateJWT(payload: Record<string, unknown>): Promise<string> {
   const privateKey = await getPrivateKey();
-  return new SignJWT({ ...payload })
+  return new SignJWT({ sub: "integration-test-principal", ...payload })
     .setProtectedHeader({ alg: "RS256" })
     .setIssuedAt()
     .setExpirationTime("1h")

@@ -5,6 +5,8 @@
     "dev": "wrangler dev",
     "deploy": "wrangler deploy --minify",
     "deploy-local": "wrangler deploy --minify -e=local",
+    "migrate-local": "npx wrangler d1 migrations apply cardy-ai-credit-local --remote",
+    "tail-log-local": "wrangler tail -e=local",
     "cf-typegen": "wrangler types --env-interface CloudflareBindings",
     "test": "vitest run",
     "test:watch": "vitest",

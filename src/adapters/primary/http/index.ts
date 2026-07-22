@@ -26,6 +26,6 @@ app.get("/message", (c) => {
   return c.text("Hello Hono!");
 });
 
-app.route("/admin/credits", creditRoutes);
+app.route("/credits", creditRoutes);
 
 export default app;
