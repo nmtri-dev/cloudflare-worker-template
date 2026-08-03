@@ -8,6 +8,8 @@ Template for building Cloudflare Workers with Hono, using a hexagonal architectu
 - Framework: Hono 4.x
 - Language: TypeScript
 - Tooling: Wrangler 4.x
+- Database: D1 (SQLite)
+- Validation: Zod 4.x + `@hono/standard-validator`
 
 ## Project Structure
 
@@ -18,10 +20,13 @@ src/
 		ports/                 # Interface contracts
 		services/              # Business logic
 	adapters/
-		primary/http/          # HTTP routes, middleware, request models
-		secondary/             # External implementations (e.g. logger)
+		primary/
+			http/              # HTTP routes, middleware, request models
+			rpc/               # WorkerEntrypoint RPC surfaces (service-to-service)
+		secondary/             # External implementations (e.g. D1 repos, logger)
 	assets/                  # Static assets (for example JWT public keys)
-	utils/                   # Shared utility helpers
+	utils/                   # Shared utility helpers (e.g. retry)
+migrations/                # D1 SQL migrations (applied in order)
 ```
 
 ## Prerequisites
@@ -51,6 +56,7 @@ The Worker runs on Wrangler's local development server (typically `http://localh
 - `npm run dev`: Start local development server (`wrangler dev`)
 - `npm run deploy`: Deploy Worker (`wrangler deploy --minify`)
 - `npm run deploy-local`: Deploy using local environment (`wrangler deploy --minify -e=local`)
+- `npm run migrate-local`: Apply D1 migrations to the local database
 - `npm test`: Run unit tests (`vitest run`)
 - `npm run test:watch`: Run unit tests in watch mode (`vitest`)
 - `npm run test:integration`: Run integration tests (`vitest run --config vitest.integration.config.mts`)
@@ -58,6 +64,20 @@ The Worker runs on Wrangler's local development server (typically `http://localh
 - `npm run cf-typegen`: Regenerate Worker bindings types (`wrangler types --env-interface CloudflareBindings`)
 
 Run `npm run cf-typegen` after editing bindings in `wrangler.jsonc`.
+
+## Example Domain
+
+The template ships a minimal generic **widget** example to demonstrate the
+conventions:
+
+- `src/core/domain/widget.ts` — domain types (camelCase wire format)
+- `src/core/ports/widgetRepository.ts` — repository port
+- `src/core/services/widgetService.ts` — business logic (auth + logging)
+- `src/adapters/secondary/d1WidgetRepository.ts` — D1 implementation
+- `src/adapters/primary/http/routes/widget.ts` — HTTP CRUD routes
+- `src/adapters/primary/rpc/entrypoints/widgetEntrypoint.ts` — RPC surface
+
+Delete these files (and the `widgets` migration) when starting a real service.
 
 ## Configuration
 

@@ -34,8 +34,267 @@ paths:
                 internalError:
                   value:
                     error: InternalError
+  /widgets:
+    get:
+      operationId: listWidgets
+      summary: List widgets
+      description: Returns all widgets. Requires a valid JWT.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Widgets returned successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - data
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Widget"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: createWidget
+      summary: Create a widget
+      description: Creates a new widget. Requires a valid JWT.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateWidgetRequest"
+      responses:
+        "201":
+          description: Widget created successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - data
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Widget"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /widgets/{widgetId}:
+    get:
+      operationId: getWidget
+      summary: Get a widget by id
+      description: Returns a single widget. Requires a valid JWT.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/WidgetId"
+      responses:
+        "200":
+          description: Widget returned successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - data
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Widget"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      operationId: updateWidget
+      summary: Update a widget
+      description: Updates an existing widget. Requires a valid JWT.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/WidgetId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateWidgetRequest"
+      responses:
+        "200":
+          description: Widget updated successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - data
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Widget"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: deleteWidget
+      summary: Delete a widget
+      description: Deletes an existing widget. Requires a valid JWT.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/WidgetId"
+      responses:
+        "200":
+          description: Widget deleted successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - data
+                properties:
+                  data:
+                    type: object
+                    additionalProperties: false
+                    required:
+                      - id
+                    properties:
+                      id:
+                        type: string
+                        example: 11111111-2222-3333-4444-555555555555
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    WidgetId:
+      name: widgetId
+      in: path
+      required: true
+      schema:
+        type: string
+      description: The id of the widget.
+  responses:
+    BadRequest:
+      description: Bad request.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          examples:
+            badRequest:
+              value:
+                error: BadRequestError
+    Unauthorized:
+      description: Unauthorized.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          examples:
+            unauthorized:
+              value:
+                error: UnauthorizedError
+    NotFound:
+      description: Not found.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          examples:
+            notFound:
+              value:
+                error: NotFoundError
+    Conflict:
+      description: Conflict.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          examples:
+            conflict:
+              value:
+                error: ConflictError
   schemas:
+    Widget:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - name
+        - description
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          example: 11111111-2222-3333-4444-555555555555
+        name:
+          type: string
+          example: Example Widget
+        description:
+          type: string
+          nullable: true
+          example: A sample widget
+        createdAt:
+          type: integer
+          description: Unix seconds.
+          example: 1700000000
+        updatedAt:
+          type: integer
+          nullable: true
+          description: Unix seconds, null when never updated.
+          example: null
+    CreateWidgetRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+          example: My Widget
+        description:
+          type: string
+          maxLength: 1000
+          nullable: true
+          example: A sample widget
+    UpdateWidgetRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+          example: My Widget
+        description:
+          type: string
+          maxLength: 1000
+          nullable: true
+          example: A sample widget
     ErrorResponse:
       type: object
       additionalProperties: false

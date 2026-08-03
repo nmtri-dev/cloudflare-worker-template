@@ -48,15 +48,29 @@ src/
 │   ├── ports/      → Interface contracts
 │   └── services/   → Business logic
 └── adapters/
-    ├── primary/http/   → Hono routes, middleware, Zod request schemas
-    └── secondary/      → Database repositories, logger implements
+    ├── primary/
+    │   ├── http/   → Hono routes, middleware, Zod request schemas
+    │   └── rpc/    → WorkerEntrypoint RPC surfaces (trusted service-to-service)
+    └── secondary/  → Database repositories, logger implements
 ```
 
 ### Routes
 
 All routes are mounted in `src/adapters/primary/http/index.ts`:
 
-- routes
+- `GET /message` — plain-text greeting (no auth)
+- `GET/POST /widgets`, `GET/PUT/DELETE /widgets/:id` — example CRUD (JWT auth)
+
+### RPC Entrypoints
+
+Named `WorkerEntrypoint`s live in `src/adapters/primary/rpc/entrypoints/` and are
+re-exported from `src/index.ts` so other services can call them via service
+bindings. Example: `WidgetEntrypoint.getWidgetByName`.
+
+- Trusted service-to-service calls — **no auth middleware, no `{data}` envelope,
+  no openapi paths**.
+- Return typed results directly.
+- Call repositories directly (bypass `AccessManagementService`).
 
 **Rules:**
 
@@ -64,6 +78,8 @@ All routes are mounted in `src/adapters/primary/http/index.ts`:
 - Adapters only handle integration — no business logic
 - Inject all dependencies via constructor — no global state
 - One class per file
+- Domain types are camelCase (wire format); secondary adapters keep raw D1 rows
+  snake_case and map to camelCase. SQL columns are never renamed.
 
 ## Stack
 
@@ -119,6 +135,24 @@ Run `npm run cf-typegen` after any change to bindings in `wrangler.jsonc`.
   await c.env.ACCESS_MGMT.authorize(principalType, principalRoles, resource, action);
   ```
 
+### D1 Database
+
+- The connection is in the binding "DB"
+- Migrations live in `migrations/` (SQL files, applied in order)
+- Apply migrations locally: `npm run migrate-local`
+- Use `db.batch([...])` for atomic multi-statement writes (all-or-nothing)
+- Raw D1 rows are snake_case; map to camelCase domain types in the repository
+- Test schema is read from the real `migrations/` dir (see `vitest.integration.config.mts`)
+
+### Retry
+
+- Use `src/utils/retry.ts` (`retryWithExponentialBackoff`) for outbound calls
+  that may fail transiently (service bindings, external HTTP)
+- Pair with an **allowlist** of retryable conditions — deterministic domain
+  errors must never be retried
+- `RetryPolicy`: `maxAttempts`, `baseDelayMs`, `maxDelayMs`, `factor`,
+  `jitterRatio` (1 = full jitter)
+
 ### API Response Format
 
 All endpoints return a consistent JSON envelope:
@@ -160,6 +194,9 @@ No deviations from this format.
 - Mock external service bindings via `workers` in miniflare config within `vitest.integration.config.mts`
 - Test helpers (auth, jwt) live in `test/integration/helpers/`
 - Type augmentations live in `test/integration/env.d.ts` and `test/integration/globals.d.ts`
+- Migrations are applied via `test/integration/apply-migrations.ts` (setup file)
+- RPC entrypoints are tested via `createExecutionContext()` + `ctx.exports`; assert
+  error cases with `try/catch` (not `.rejects`) to avoid unhandled rejections
 
 ## Documents
 

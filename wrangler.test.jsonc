@@ -13,5 +13,12 @@
       "binding": "ACCESS_MGMT",
       "service": "cardy-ai-access-management-local"
     }
+  ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "cloudflare-worker-template-db-test",
+      "migrations_dir": "migrations"
+    }
   ]
 }
