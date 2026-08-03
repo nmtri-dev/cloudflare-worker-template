@@ -1,45 +1,61 @@
-import { cloudflareTest } from "@cloudflare/vitest-pool-workers";
+import path from "node:path";
+import {
+  cloudflareTest,
+  readD1Migrations,
+} from "@cloudflare/vitest-pool-workers";
 import { defineConfig } from "vitest/config";
 
 // Test RSA public key — corresponds to the private key in test/integration/helpers/jwt.ts.
 // Used by the authenticationMiddleware when JWT_TEST_PUBLIC_KEY is present in the env.
 const TEST_PUBLIC_KEY = `-----BEGIN PUBLIC KEY-----
-MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAoQDO4lxTDBX6i6ZPrhQe
-oRQ3HHIB+iQv1mK83yqRP+R/dii0iKgMCG5XBnb63yZTuQRYSGHvfD6JhUSCJVTr
-GRf1g/99oMd0/OkL1GTw9GtcQPrURy/RRlJsSESPM2qlOjZJS7X7YQcgvnz5tVt5
-81cBQrWM5DxDZyyr2tp6IXJAJ5FmxujiRRXexBGVxYnFC30WGDDAMD4Ng8Zh0b/I
-VhhYo9UMCH4eVm3eaGi5VznyuU7SaHO3hoteKQ6/sJlqxFgJ36FZySSOOJaAE0lS
-buo3Qf46J9uRQn/puG67OD4dMe1p33SiDxh7jR/YFHEuXCCdXcEKR46DH3U66Tsz
-IwIDAQAB
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAud3tnWh4XEVUsA952xWV
+y6SB7vPFf1GO9dtSFspDJhqxeEfrNfcfPQj6iG97LAjFf1/dIe/0gWw/lDb6UwrO
+Hx1ez0sDFdLYM5GM1Q9qetmERcNihvz8MxWjvhxtoelamj0jmnzugjF/M1flraw2
+KXb0Byorpi4jsrskjza6+KRgxP/3yG57znrbVnqQyI3qGBaMz/mRLtia54iqva3/
+7nzCSU+CbsbSb+edIwqIOyQv9dg1ZXzixsxUX8s2aheo0/aZ8+6hOPop1CtE+Kba
+mnrxQ1jnTkWvCZgG/NNS06FG9B6Al0a2NXGPbDNZIkySUYJ7XRAUXxRee1NTbWit
+FwIDAQAB
 -----END PUBLIC KEY-----`;
 
-export default defineConfig({
-  plugins: [
-    cloudflareTest({
-      wrangler: { configPath: "./wrangler.test.jsonc" },
-      miniflare: {
-        // Inject the test public key so the auth middleware uses it during tests.
-        bindings: {
-          JWT_TEST_PUBLIC_KEY: TEST_PUBLIC_KEY,
-        },
-        // Provide a mock for the ACCESS_MGMT service binding (RPC — always authorises).
-        workers: [
-          {
-            name: "cardy-ai-access-management-local",
-            compatibilityDate: "2024-01-01",
-            modules: true,
-            script: `
-              import { WorkerEntrypoint } from 'cloudflare:workers';
-              export default class extends WorkerEntrypoint {
-                async authorize() {}
-              }
-            `,
+export default defineConfig(async () => {
+  // Read all migrations in the `migrations` directory. Uses wrangler's own
+  // `unstable_splitSqlQuery` (via `readD1Migrations`) so the test schema setup
+  // can never drift from the production migrations — no vendored SQL splitter.
+  const migrationsPath = path.join(import.meta.dirname, "migrations");
+  const migrations = await readD1Migrations(migrationsPath);
+
+  return {
+    plugins: [
+      cloudflareTest({
+        wrangler: { configPath: "./wrangler.test.jsonc" },
+        miniflare: {
+          // Inject the test public key so the auth middleware uses it during tests.
+          bindings: {
+            JWT_TEST_PUBLIC_KEY: TEST_PUBLIC_KEY,
+            // Test-only binding so `applyD1Migrations` can be called from a setup file.
+            TEST_MIGRATIONS: migrations,
           },
-        ],
-      },
-    }),
-  ],
-  test: {
-    include: ["test/integration/**/*.spec.ts"],
-  },
+          d1Databases: ["DB"],
+          // Provide a mock for the ACCESS_MGMT service binding (RPC — always authorises).
+          workers: [
+            {
+              name: "cardy-ai-access-management-local",
+              compatibilityDate: "2024-01-01",
+              modules: true,
+              script: `
+                import { WorkerEntrypoint } from 'cloudflare:workers';
+                export default class extends WorkerEntrypoint {
+                  async authorize() {}
+                }
+              `,
+            },
+          ],
+        },
+      }),
+    ],
+    test: {
+      include: ["test/integration/**/*.spec.ts"],
+      setupFiles: ["./test/integration/apply-migrations.ts"],
+    },
+  };
 });

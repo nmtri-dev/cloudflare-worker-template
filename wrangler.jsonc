@@ -22,6 +22,13 @@
       "service": "cardy-ai-access-management-local",
     },
   ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "cloudflare-worker-template-db-local",
+      "database_id": "00000000-0000-0000-0000-000000000000"
+    }
+  ],
   "env": {
     "local": {
       "vars": {
@@ -32,6 +39,13 @@
           "binding": "ACCESS_MGMT",
           "service": "cardy-ai-access-management-local",
         },
+      ],
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "cloudflare-worker-template-db-local",
+          "database_id": "00000000-0000-0000-0000-000000000000"
+        }
       ],
     },
   },

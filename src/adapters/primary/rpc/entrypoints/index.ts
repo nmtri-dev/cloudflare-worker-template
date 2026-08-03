@@ -1,0 +1,1 @@
+export { WidgetEntrypoint } from "./widgetEntrypoint";
