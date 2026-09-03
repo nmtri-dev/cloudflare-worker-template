@@ -1,0 +1,8 @@
+# Local development vars for `npm run dev` (wrangler dev).
+# Copy this file to `.dev.vars` and fill in the real values.
+# `.dev.vars` is git-ignored — never commit real keys.
+
+# RSA public key PEM used to verify JWTs (JWT_PUBLIC_KEY binding).
+# Must match the private key used by the identity service to sign tokens
+# (the identity service's JWT_PRIVATE_KEY).
+JWT_PUBLIC_KEY="<paste your RSA public key PEM>"

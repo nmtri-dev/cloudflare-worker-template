@@ -1,0 +1,17 @@
+name: Enforce Version Tag
+
+on:
+  pull_request:
+    branches:
+      - main
+    types: [opened, edited, labeled, unlabeled, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  check-version-tag:
+    uses: Card-360/common-github-actions/.github/workflows/enforce-version-tag.yml@v0.1.0
+    secrets:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

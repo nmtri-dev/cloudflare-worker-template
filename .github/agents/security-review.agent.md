@@ -48,7 +48,9 @@ Focus on the following attack surfaces for this service:
 
 - Hardcoded secrets or tokens in source files
 - Environment bindings accessed directly (not via DI / constructor injection)
-- Public key for JWT fetched from assets — validate origin and caching behavior
+- Public key for JWT provided via the `JWT_PUBLIC_KEY` env binding — validate
+  its source (GitHub Environment vars via Terraform / `.dev.vars` locally) and
+  that it is never embedded in the bundle
 
 ### Cloudflare Workers Specifics
 

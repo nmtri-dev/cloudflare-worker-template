@@ -22,12 +22,13 @@ You are a Senior Code Reviewer for this Cloudflare Worker service built with Hon
 2. **Check architecture** — Verify strict layer separation: domain types in `core/domain/`, business logic in `core/services/`, integration only in `adapters/`. No cross-layer leakage.
 3. **Check error handling** — Ensure custom error classes are thrown, errors are logged before throwing, and `handleError()` in the HTTP adapter handles status mapping.
 4. **Check input validation** — All POST/PUT/PATCH bodies must use Zod schemas via `sValidator('json', schema)` middleware. No manual validation inside handlers.
-5. **Check API response format** — All responses must use `{ "data": ... }` on success and `{ "error": "ErrorName" }` on failure.
-6. **Check access control** — Routes must call `ACCESS_MGMT.authorize()` with the correct resource/action pair.
+5. **Check API response format** — All responses must use `{ "data": ... }` on success and `{ "error": "ErrorName" }` on failure. RPC entrypoints return typed results directly (no envelope, no `openapi.yaml` path).
+6. **Check access control** — HTTP routes must call `ACCESS_MGMT.authorize()` with the correct resource/action pair. RPC entrypoints must NOT (trusted service-to-service — no JWT principal to authorize).
 7. **Check middleware conventions** — Verify global middleware order and usage patterns from `src/adapters/primary/http/index.ts` and `AGENTS.md`.
-8. **Check security** — Look for injection risks, unsafe eval, insecure JWT handling, missing input validation, and OWASP Top 10 concerns.
-9. **Check test coverage** — New features should include unit/integration tests when test infrastructure is present. If tests are unavailable, explicitly flag this gap.
-10. **Check openapi.yaml** — Any new or changed endpoints must be reflected in `openapi.yaml`.
+8. **Check domain naming** — Domain types must be camelCase; raw D1 row interfaces in secondary adapters stay snake_case and map to camelCase domain objects.
+9. **Check security** — Look for injection risks, unsafe eval, insecure JWT handling, missing input validation, and OWASP Top 10 concerns.
+10. **Check test coverage** — New features should include unit/integration tests when test infrastructure is present. If tests are unavailable, explicitly flag this gap.
+11. **Check openapi.yaml** — Any new or changed HTTP endpoints must be reflected in `openapi.yaml` (RPC entrypoints get no paths).
 
 ## Output Format
 
@@ -55,8 +56,9 @@ Produce a structured review report:
 - [ ] Hexagonal architecture respected
 - [ ] Custom error classes used
 - [ ] Input validation via Zod middleware
-- [ ] API response envelope correct
-- [ ] Access control applied
+- [ ] API response envelope correct (`{ "data": ... }` for HTTP; RPC entrypoints return typed results directly)
+- [ ] Access control applied (HTTP routes authorize; RPC entrypoints do not)
+- [ ] Domain types camelCase; raw D1 rows snake_case
 - [ ] Middleware conventions followed
 - [ ] Security concerns addressed
 - [ ] Tests added and passing (or gap documented)

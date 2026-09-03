@@ -1,0 +1,30 @@
+name: Continuous Deployment
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+  workflow_call:
+    secrets:
+      GH_TOKEN:
+        required: true
+    outputs:
+      tag:
+        description: 'The new tag created (e.g., v1.2.3)'
+        value: ${{ jobs.create-release.outputs.tag }}
+      version:
+        description: 'The new version number (e.g., 1.2.3)'
+        value: ${{ jobs.create-release.outputs.version }}
+      release_url:
+        description: 'The URL of the created release'
+        value: ${{ jobs.create-release.outputs.release_url }}
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  create-release:
+    uses: Card-360/common-github-actions/.github/workflows/create-release.yml@v0.1.0
+    secrets:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

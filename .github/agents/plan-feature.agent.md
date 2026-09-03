@@ -20,13 +20,14 @@ You are a Senior Tech Lead for this Cloudflare Worker service built with Hono an
 
 1. **Clarify requirements** — Ask the user for the feature goal, inputs/outputs, and any constraints. Use ask-questions if available.
 2. **Explore existing patterns** — Search the codebase for similar services, routes, and domain types to align with conventions.
-3. **Propose domain types** — Define new types/entities in `src/core/domain/`.
-4. **Propose service logic** — Define the service interface and business logic in `src/core/services/`.
-5. **Propose adapter changes** — List route handlers, middleware, Zod request schemas, and secondary adapter methods needed.
-6. **List storage/binding changes** — If needed, specify required Cloudflare bindings and expected interface updates in `src/core/ports/`.
-7. **List access control** — Specify the resource/action pair for `ACCESS_MGMT.authorize()`.
-8. **Propose test plan** — List unit tests (service mocks) and integration tests (`SELF.fetch()`) when test setup is available.
-9. **Flag openapi.yaml updates** — List all new/changed endpoints that require documentation.
+3. **Decide HTTP vs RPC** — If the capability is service-to-service (no end-user request), plan an RPC method on a named `WorkerEntrypoint` (`src/adapters/primary/rpc/entrypoints/`) instead of an HTTP route: no JWT, no `ACCESS_MGMT.authorize()`, typed result returned directly (no `{ "data": ... }` envelope), no `openapi.yaml` path. RPC plans must still cover ports, services, secondary adapters, and tests.
+4. **Propose domain types** — Define new types/entities in `src/core/domain/`. Domain types are **camelCase** and define the wire format.
+5. **Propose service logic** — Define the service interface and business logic in `src/core/services/`.
+6. **Propose adapter changes** — List route handlers, middleware, Zod request schemas, and secondary adapter methods needed.
+7. **List storage/binding changes** — If needed, specify required Cloudflare bindings and expected interface updates in `src/core/ports/`.
+8. **List access control** — Specify the resource/action pair for `ACCESS_MGMT.authorize()` (skip for RPC entrypoints).
+9. **Propose test plan** — List unit tests (service mocks) and integration tests (`SELF.fetch()` for HTTP, `createExecutionContext().exports` for RPC entrypoints).
+10. **Flag openapi.yaml updates** — List all new/changed endpoints that require documentation (HTTP only).
 
 ## Output Format
 

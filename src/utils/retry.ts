@@ -2,10 +2,9 @@
  * Generic, framework-agnostic retry helper (pure — no Cloudflare bindings,
  * unit-testable).
  *
- * Ported from the cardy-ai-subscription service. Use it for outbound calls
- * (e.g. service bindings, external HTTP) that may fail transiently. Pair it
- * with an allowlist of retryable conditions — deterministic domain errors
- * should never be retried.
+ * Use it for outbound calls (e.g. service bindings, external HTTP) that may
+ * fail transiently. Pair it with an allowlist of retryable conditions —
+ * deterministic domain errors should never be retried.
  */
 
 import { InternalError } from "../core/domain/error";

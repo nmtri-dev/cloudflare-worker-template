@@ -7,9 +7,32 @@
   "name": "cloudflare-worker-template",
   "main": "src/index.ts",
   "compatibility_date": "2026-04-29",
-  "rules": [{ "type": "Text", "globs": ["**/*.key"], "fallthrough": false }],
+  /**
+   * Workers Logs & Traces (dashboard + `wrangler tail`).
+   *
+   * This mirrors the observability block applied by Terraform
+   * (terraform/main.tf → cloudflare_workers_script.worker) so the
+   * local dev worker and deployed scripts behave consistently. Keep them in
+   * sync.
+   *
+   * NOTE: the root `enabled` here is the master switch — wrangler only maps
+   * `observability.enabled` to the deployed script-settings, so `enabled:
+   * true` is what enables Workers Logs for local and remote.
+   */
   "observability": {
     "enabled": true,
+    "head_sampling_rate": 1,
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 1,
+      "persist": true,
+      "invocation_logs": true,
+    },
+    "traces": {
+      "enabled": true,
+      "persist": true,
+      "head_sampling_rate": 1,
+    },
   },
   "upload_source_maps": true,
   "compatibility_flags": ["nodejs_compat"],
@@ -20,6 +43,11 @@
     {
       "binding": "ACCESS_MGMT",
       "service": "cardy-ai-access-management-local",
+      // The access-management worker exposes its `authorize` RPC here. Named
+      // RPC entrypoint (not the default fetch handler) — without the
+      // `entrypoint` the binding resolves to the default handler and the RPC
+      // method does not exist.
+      "entrypoint": "AccessManagementEntrypoint",
     },
   ],
   "d1_databases": [
@@ -38,6 +66,9 @@
         {
           "binding": "ACCESS_MGMT",
           "service": "cardy-ai-access-management-local",
+          // Named RPC entrypoint (not the default fetch handler) — the
+          // access-management worker exposes its `authorize` RPC here.
+          "entrypoint": "AccessManagementEntrypoint",
         },
       ],
       "d1_databases": [
@@ -46,6 +77,45 @@
           "database_name": "cloudflare-worker-template-db-local",
           "database_id": "00000000-0000-0000-0000-000000000000"
         }
+      ],
+    },
+    /**
+     * Deployed worker scripts (cloudflare-worker-template-<env>) and all
+     * bindings are owned by Terraform. These env blocks exist so CLI commands
+     * can target the deployed worker + its D1 DB by name without drift:
+     *   `wrangler secret put --env dev`        → cloudflare-worker-template-dev
+     *   `wrangler d1 migrations apply <name> --env dev --remote`
+     * The env name is appended to the worker name at runtime. The D1
+     * database_name below matches Terraform's
+     * `cloudflare-worker-template-<env>-db` naming (created by
+     * `cloudflare_d1_database.worker_db`), so `wrangler d1 ... --remote` can
+     * resolve the database by name even though Terraform owns the actual
+     * resource.
+     */
+    "dev": {
+      "name": "cloudflare-worker-template",
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "cloudflare-worker-template-dev-db",
+          // The `database_id` here is a placeholder — the deploy workflow
+          // (deploy-dev.yml) patches it with the real ID from Terraform
+          // output `d1_database_id` before running migrations.
+          "database_id": "00000000-0000-0000-0000-000000000000",
+        },
+      ],
+    },
+    "production": {
+      "name": "cloudflare-worker-template",
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "cloudflare-worker-template-production-db",
+          // The `database_id` here is a placeholder — the deploy workflow
+          // (deploy-production.yml) patches it with the real ID from
+          // Terraform output `d1_database_id` before running migrations.
+          "database_id": "00000000-0000-0000-0000-000000000000",
+        },
       ],
     },
   },

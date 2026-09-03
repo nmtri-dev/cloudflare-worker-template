@@ -24,9 +24,10 @@ src/
 			http/              # HTTP routes, middleware, request models
 			rpc/               # WorkerEntrypoint RPC surfaces (service-to-service)
 		secondary/             # External implementations (e.g. D1 repos, logger)
-	assets/                  # Static assets (for example JWT public keys)
 	utils/                   # Shared utility helpers (e.g. retry)
 migrations/                # D1 SQL migrations (applied in order)
+terraform/                 # Terraform IaC (Worker script + D1 + bindings)
+scripts/                   # Build tooling (esbuild bundle for Terraform)
 ```
 
 ## Prerequisites
@@ -43,6 +44,15 @@ Install dependencies:
 npm install
 ```
 
+Set up local environment variables:
+
+```bash
+cp .dev.vars.example .dev.vars
+```
+
+Fill in `JWT_PUBLIC_KEY` — the RSA public key PEM matching the private key
+used by the identity service to sign JWTs (its `JWT_PRIVATE_KEY`).
+
 Run locally:
 
 ```bash
@@ -57,6 +67,9 @@ The Worker runs on Wrangler's local development server (typically `http://localh
 - `npm run deploy`: Deploy Worker (`wrangler deploy --minify`)
 - `npm run deploy-local`: Deploy using local environment (`wrangler deploy --minify -e=local`)
 - `npm run migrate-local`: Apply D1 migrations to the local database
+- `npm run migrate-dev`: Apply D1 migrations to the deployed DEV database
+- `npm run migrate-production`: Apply D1 migrations to the deployed PROD database
+- `npm run build`: Build `dist/worker.js` (esbuild bundle for Terraform)
 - `npm test`: Run unit tests (`vitest run`)
 - `npm run test:watch`: Run unit tests in watch mode (`vitest`)
 - `npm run test:integration`: Run integration tests (`vitest run --config vitest.integration.config.mts`)
@@ -86,12 +99,15 @@ Main Worker configuration is in `wrangler.jsonc`.
 Current bindings and variables:
 
 - Variable `ALLOWED_ORIGINS` for CORS origin allowlist (comma-separated)
-- Service binding `ACCESS_MGMT` for access authorization RPC
+- Variable `JWT_PUBLIC_KEY` for JWT signature verification (RSA public key PEM; provided locally via `.dev.vars`, in deployed environments via Terraform from the GitHub Environment vars)
+- Service binding `ACCESS_MGMT` for access authorization RPC (targets the access-management worker's named `AccessManagementEntrypoint`)
+- D1 database binding `DB`
 
 Environments:
 
 - Default environment
 - `local` environment override under `env.local`
+- `dev` / `production` env blocks exist so CLI commands (e.g. `wrangler d1 migrations apply --env dev`) can target the Terraform-owned deployed worker + D1 DB by name
 
 ## HTTP Layer
 
@@ -108,7 +124,8 @@ Centralized error handling is configured with `app.onError(handleError)`.
 
 ## API
 
-OpenAPI spec is available at `openapi.yaml`.
+OpenAPI spec is available at `openapi.yaml` (HTTP endpoints only — RPC
+entrypoints get no paths).
 
 Current endpoint:
 
@@ -120,14 +137,22 @@ Error response format is standardized as:
 { "error": "ErrorName" }
 ```
 
-Defined error names:
+## RPC Entrypoints
 
-- `InternalError`
-- `BadRequestError`
-- `UnauthorizedError`
-- `NotFoundError`
-- `ConflictError`
-- `ForbiddenError`
+Named `WorkerEntrypoint`s live in `src/adapters/primary/rpc/entrypoints/` and
+are re-exported from `src/index.ts` so other services can call them via
+service bindings. Example: `WidgetEntrypoint.getWidgetByName`.
+
+- Trusted service-to-service calls — no auth middleware, no `{ data }`
+  envelope, no openapi paths.
+- Return typed results directly.
+
+## Provisioning (GitHub Actions + Terraform)
+
+Terraform owns the deployed Worker script + D1 database + all bindings
+(state in a shared R2 S3-compatible bucket); CI runs it. See `terraform/` and
+`.github/workflows/` for details, and `AGENTS.md` for the full conventions
+(state seeding, cross-service discovery, env blocks, bootstrap steps).
 
 ## Architecture Guidelines
 
@@ -183,7 +208,7 @@ Configuration files:
 | `test/integration/helpers/auth.ts` | Helper to generate Authorization headers |
 | `test/integration/helpers/jwt.ts` | JWT generation for test contexts |
 
-Mock external service bindings (e.g., `ACCESS_MGMT`) via the `workers` option in `vitest.integration.config.mts`.
+Mock external service bindings (e.g., `ACCESS_MGMT`) via the `workers` option in `vitest.integration.config.mts`. Mocks must export a **named** entrypoint class matching the binding's `entrypoint` (e.g. `export class AccessManagementEntrypoint extends WorkerEntrypoint`) — the anonymous default-class pattern breaks once a binding declares an `entrypoint`.
 
 ## Deployment
 

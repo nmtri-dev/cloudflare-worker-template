@@ -4,14 +4,16 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-04-29",
   "compatibility_flags": ["nodejs_compat"],
-  "rules": [{ "type": "Text", "globs": ["**/*.key"], "fallthrough": false }],
   "vars": {
     "ALLOWED_ORIGINS": ""
   },
   "services": [
     {
       "binding": "ACCESS_MGMT",
-      "service": "cardy-ai-access-management-local"
+      "service": "cardy-ai-access-management-local",
+      // The access-management worker exposes its `authorize` RPC here. Named
+      // entrypoint must match the binding declared in wrangler.jsonc.
+      "entrypoint": "AccessManagementEntrypoint"
     }
   ],
   "d1_databases": [

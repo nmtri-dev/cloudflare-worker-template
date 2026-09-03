@@ -1,12 +1,20 @@
 {
   "name": "cloudflare-worker-template",
   "type": "module",
+  "engines": {
+    "node": ">=22",
+    "npm": ">=10"
+  },
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy --minify",
     "deploy-local": "wrangler deploy --minify -e=local",
     "migrate-local": "npx wrangler d1 migrations apply cloudflare-worker-template-db-local --remote",
+    "migrate-dev": "npx wrangler d1 migrations apply cloudflare-worker-template-dev-db --remote --env dev",
+    "migrate-production": "npx wrangler d1 migrations apply cloudflare-worker-template-production-db --remote --env production",
+    "tail-log-local": "wrangler tail -e=local",
     "cf-typegen": "wrangler types --env-interface CloudflareBindings",
+    "build": "node scripts/build.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:integration": "vitest run --config vitest.integration.config.mts",
@@ -20,6 +28,7 @@
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.18.2",
     "@types/node": "^25.6.0",
+    "esbuild": "^0.27.7",
     "jose": "^6.2.3",
     "vitest": "^4.1.10",
     "wrangler": "^4.86.0"

@@ -1,5 +1,4 @@
 import { createMiddleware } from "hono/factory";
-import assetPublicKey from "../../../../assets/local_public.key";
 import { verifyJwt } from "../../../../utils";
 import { AccessTokenClaims, UnauthorizedError } from "../../../../core/domain";
 import { Logger } from "../../../../core/ports";
@@ -17,12 +16,14 @@ export function authenticationMiddleware() {
 
     const token = authHeader.substring(7); // Remove "Bearer " prefix
 
-    // JWT_TEST_PUBLIC_KEY is injected by the test environment (vitest.config.mts).
-    // In production this var is never set, so assetPublicKey is always used.
+    // JWT_TEST_PUBLIC_KEY is injected by the test environment
+    // (vitest.integration.config.mts) to verify JWTs signed with the hardcoded
+    // test private key. In production this var is never set, so
+    // c.env.JWT_PUBLIC_KEY is always used.
     const publicKey =
       ((c.env as Record<string, unknown>).JWT_TEST_PUBLIC_KEY as
         | string
-        | undefined) ?? assetPublicKey;
+        | undefined) ?? c.env.JWT_PUBLIC_KEY;
 
     const claims = await verifyJwt(token, publicKey);
 

@@ -36,7 +36,10 @@ export default defineConfig(async () => {
             TEST_MIGRATIONS: migrations,
           },
           d1Databases: ["DB"],
-          // Provide a mock for the ACCESS_MGMT service binding (RPC — always authorises).
+          // Provide a mock for the ACCESS_MGMT service binding (RPC — always
+          // authorises). The named entrypoint must match the binding declared
+          // in wrangler.jsonc / wrangler.test.jsonc
+          // (`AccessManagementEntrypoint`).
           workers: [
             {
               name: "cardy-ai-access-management-local",
@@ -44,9 +47,10 @@ export default defineConfig(async () => {
               modules: true,
               script: `
                 import { WorkerEntrypoint } from 'cloudflare:workers';
-                export default class extends WorkerEntrypoint {
+                export class AccessManagementEntrypoint extends WorkerEntrypoint {
                   async authorize() {}
                 }
+                export default AccessManagementEntrypoint;
               `,
             },
           ],

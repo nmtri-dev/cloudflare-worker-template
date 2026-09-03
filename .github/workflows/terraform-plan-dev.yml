@@ -1,0 +1,130 @@
+name: '[DEV] Terraform Plan'
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  terraform-plan:
+    runs-on: ubuntu-latest
+    environment: DEV
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # dist/worker.js is required by terraform plan (main.tf reads it via
+      # file("${path.module}/../dist/worker.js")). The build is
+      # environment-agnostic — ALLOWED_ORIGINS and JWT_PUBLIC_KEY come from
+      # the env vars, not the bundle.
+      - run: npm ci
+      - run: npm run build
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.x
+
+      - name: Terraform init
+        working-directory: terraform
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          terraform init \
+            -backend-config="bucket=${{ secrets.TFSTATE_R2_BUCKET }}" \
+            -backend-config="key=cloudflare-worker-template/dev.tfstate" \
+            -backend-config="endpoints={s3=\"https://${{ vars.CF_ACCOUNT_ID }}.r2.cloudflarestorage.com\"}" \
+            -backend-config="access_key=${{ secrets.R2_ACCESS_KEY_ID }}" \
+            -backend-config="secret_key=${{ secrets.R2_SECRET_ACCESS_KEY }}"
+
+      - name: Terraform fmt check
+        working-directory: terraform
+        run: terraform fmt -check -recursive
+
+      - name: Terraform plan
+        id: plan
+        working-directory: terraform
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CF_ACCOUNT_ID }}
+          ALLOWED_ORIGINS: ${{ vars.ALLOWED_ORIGINS }}
+          JWT_PUBLIC_KEY: ${{ vars.JWT_PUBLIC_KEY }}
+          API_DOMAIN_HOSTNAME: ${{ vars.API_DOMAIN_HOSTNAME }}
+          ZONE_ID: ${{ vars.ZONE_ID }}
+          TFSTATE_R2_BUCKET: ${{ secrets.TFSTATE_R2_BUCKET }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+        run: |
+          terraform plan -out=tfplan \
+            -var="account_id=$CLOUDFLARE_ACCOUNT_ID" \
+            -var="environment=dev" \
+            -var="allowed_origins=$ALLOWED_ORIGINS" \
+            -var="jwt_public_key=$JWT_PUBLIC_KEY" \
+            -var="api_domain_hostname=$API_DOMAIN_HOSTNAME" \
+            -var="zone_id=$ZONE_ID" \
+            -var="tfstate_r2_bucket=$TFSTATE_R2_BUCKET" \
+            -var="tfstate_r2_access_key=$R2_ACCESS_KEY_ID" \
+            -var="tfstate_r2_secret_key=$R2_SECRET_ACCESS_KEY"
+          terraform show -no-color tfplan > tfplan.txt
+
+      - name: Post Plan Summary
+        if: always() && steps.plan.outcome == 'success'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const env = 'DEV';
+            let plan = '';
+            try {
+              plan = fs.readFileSync('terraform/tfplan.txt', 'utf8').toString();
+            } catch (err) {
+              console.log('tfplan.txt not found; skipping summary');
+            }
+
+            if (!plan) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: '[' + env + '] `terraform plan` produced no changes.',
+              });
+              return;
+            }
+
+            // Keep the summary line on top, then show the full plan detail.
+            const summaryMatch = plan.match(/^Plan: .*$/m);
+            const summary = summaryMatch ? summaryMatch[0] : 'Plan: n/a';
+
+            // GitHub issue comments are limited to 65536 chars — truncate.
+            const MAX = 60000;
+            const truncated = plan.length > MAX;
+            const detail = truncated
+              ? plan.slice(0, MAX) + '\n\n... (output truncated)'
+              : plan;
+
+            const body = [
+              '### [' + env + '] ' + summary,
+              '',
+              '<details>',
+              '<summary>Full plan output</summary>',
+              '',
+              '```diff',
+              detail,
+              '```',
+              '',
+              '</details>',
+            ].join('\n');
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body,
+            });

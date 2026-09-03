@@ -1,0 +1,212 @@
+name: Terraform
+
+on:
+  # Reusable: called by deploy-dev.yml / deploy-production.yml (and usable
+  # from any workflow that needs to plan/apply the shared infra).
+  workflow_call:
+    inputs:
+      environment:
+        description: 'Target environment (DEV or PROD)'
+        type: string
+        required: true
+    # Callers can only read outputs declared here (see
+    # `jobs.plan.outputs` below — they map to these workflow-level outputs).
+    # Without this block, `needs.terraform.outputs.<name>` in the caller
+    # resolves to an empty string.
+    outputs:
+      d1_database_name:
+        description: 'Name of the D1 database created by Terraform'
+        value: ${{ jobs.apply.outputs.d1_database_name }}
+      d1_database_id:
+        description: 'ID of the D1 database created by Terraform'
+        value: ${{ jobs.apply.outputs.d1_database_id }}
+      worker_script_name:
+        description: 'Name of the deployed Worker script'
+        value: ${{ jobs.apply.outputs.worker_script_name }}
+
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Plan — runs freely so the plan is always visible for review. Uploads the
+  # plan file as an artifact for the apply job.
+  # ---------------------------------------------------------------------------
+  plan:
+    runs-on: ubuntu-latest
+    # Binds the caller's environment so environment-level secrets/vars
+    # (TFSTATE_R2_BUCKET, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, CF_ACCOUNT_ID)
+    # resolve during `terraform init`. Without this they resolve to empty
+    # strings and init fails with "The value cannot be empty or all whitespace"
+    # on the S3 backend block. The apply job below is the approval gate.
+    # NOTE: if required reviewers are configured on DEV/PROD they now gate the
+    # plan too — to keep the plan free-running, move required reviewers to a
+    # separate environment bound only by the apply job.
+    environment: ${{ inputs.environment || 'DEV' }}
+
+    # Maps the GitHub Environment name (DEV/PROD) to the lowercase values used
+    # by the Terraform resources and CF_ENV (dev/production), and to the
+    # per-env Terraform state key.
+    env:
+      TF_ENV: ${{ inputs.environment == 'PROD' && 'production' || 'dev' }}
+      TF_STATE_KEY: ${{ inputs.environment == 'PROD' && 'cloudflare-worker-template/production.tfstate' || 'cloudflare-worker-template/dev.tfstate' }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - name: Build worker bundle
+        run: npm run build # produces dist/worker.js for cloudflare_workers_script content
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.x
+
+      - name: Terraform init
+        working-directory: terraform
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          terraform init \
+            -backend-config="bucket=${{ secrets.TFSTATE_R2_BUCKET }}" \
+            -backend-config="key=${{ env.TF_STATE_KEY }}" \
+            -backend-config="endpoints={s3=\"https://${{ vars.CF_ACCOUNT_ID }}.r2.cloudflarestorage.com\"}" \
+            -backend-config="access_key=${{ secrets.R2_ACCESS_KEY_ID }}" \
+            -backend-config="secret_key=${{ secrets.R2_SECRET_ACCESS_KEY }}"
+
+      - name: Terraform fmt check
+        working-directory: terraform
+        run: terraform fmt -check -recursive
+
+      - name: Terraform plan
+        id: plan
+        working-directory: terraform
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CF_ACCOUNT_ID }}
+          ALLOWED_ORIGINS: ${{ vars.ALLOWED_ORIGINS }}
+          JWT_PUBLIC_KEY: ${{ vars.JWT_PUBLIC_KEY }}
+          API_DOMAIN_HOSTNAME: ${{ vars.API_DOMAIN_HOSTNAME }}
+          ZONE_ID: ${{ vars.ZONE_ID }}
+          TFSTATE_R2_BUCKET: ${{ secrets.TFSTATE_R2_BUCKET }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+        run: |
+          terraform plan \
+            -var="account_id=$CLOUDFLARE_ACCOUNT_ID" \
+            -var="environment=${{ env.TF_ENV }}" \
+            -var="allowed_origins=$ALLOWED_ORIGINS" \
+            -var="jwt_public_key=$JWT_PUBLIC_KEY" \
+            -var="api_domain_hostname=$API_DOMAIN_HOSTNAME" \
+            -var="zone_id=$ZONE_ID" \
+            -var="tfstate_r2_bucket=$TFSTATE_R2_BUCKET" \
+            -var="tfstate_r2_access_key=$R2_ACCESS_KEY_ID" \
+            -var="tfstate_r2_secret_key=$R2_SECRET_ACCESS_KEY" \
+            -out=tfplan
+
+      # Make the plan file available to the apply job (artifacts survive job
+      # boundaries; the plan was written into terraform/ by `-out=tfplan`).
+      - name: Upload Terraform plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan-${{ github.run_id }}
+          path: terraform/tfplan
+          retention-days: 1
+
+  # ---------------------------------------------------------------------------
+  # Apply — gated behind the environment's required reviewers. The plan must be
+  # reviewed and approved (via the DEV/PROD environment) before this runs.
+  # ---------------------------------------------------------------------------
+  apply:
+    needs: plan
+    runs-on: ubuntu-latest
+    # REQUIRED REVIEWERS: configure "Required reviewers" on the DEV/PROD
+    # GitHub Environment (Settings → Environments) — this blocks the job until
+    # a reviewer approves. Note: the deploy-*.yml migrate job also binds these
+    # environments, so adding reviewers there gates it too (it only runs after
+    # apply anyway).
+    environment: ${{ inputs.environment || 'DEV' }}
+
+    env:
+      TF_ENV: ${{ inputs.environment == 'PROD' && 'production' || 'dev' }}
+      TF_STATE_KEY: ${{ inputs.environment == 'PROD' && 'cloudflare-worker-template/production.tfstate' || 'cloudflare-worker-template/dev.tfstate' }}
+
+    # Job-level outputs — computed AFTER apply so callers (the migrate job)
+    # always get current values. Re-exposed via `on.workflow_call.outputs`.
+    outputs:
+      d1_database_name: ${{ steps.tf-output.outputs.d1_database_name }}
+      d1_database_id: ${{ steps.tf-output.outputs.d1_database_id }}
+      worker_script_name: ${{ steps.tf-output.outputs.worker_script_name }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - name: Build worker bundle
+        run: npm run build # produces dist/worker.js for cloudflare_workers_script content
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.x
+
+      - name: Terraform init
+        working-directory: terraform
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          terraform init \
+            -backend-config="bucket=${{ secrets.TFSTATE_R2_BUCKET }}" \
+            -backend-config="key=${{ env.TF_STATE_KEY }}" \
+            -backend-config="endpoints={s3=\"https://${{ vars.CF_ACCOUNT_ID }}.r2.cloudflarestorage.com\"}" \
+            -backend-config="access_key=${{ secrets.R2_ACCESS_KEY_ID }}" \
+            -backend-config="secret_key=${{ secrets.R2_SECRET_ACCESS_KEY }}"
+
+      - name: Download Terraform plan
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan-${{ github.run_id }}
+          path: terraform
+
+      - name: Terraform apply
+        id: apply
+        working-directory: terraform
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CF_ACCOUNT_ID }}
+          ALLOWED_ORIGINS: ${{ vars.ALLOWED_ORIGINS }}
+          JWT_PUBLIC_KEY: ${{ vars.JWT_PUBLIC_KEY }}
+          API_DOMAIN_HOSTNAME: ${{ vars.API_DOMAIN_HOSTNAME }}
+          ZONE_ID: ${{ vars.ZONE_ID }}
+          TFSTATE_R2_BUCKET: ${{ secrets.TFSTATE_R2_BUCKET }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+        run: |
+          terraform apply \
+            -var="account_id=$CLOUDFLARE_ACCOUNT_ID" \
+            -var="environment=${{ env.TF_ENV }}" \
+            -var="allowed_origins=$ALLOWED_ORIGINS" \
+            -var="jwt_public_key=$JWT_PUBLIC_KEY" \
+            -var="api_domain_hostname=$API_DOMAIN_HOSTNAME" \
+            -var="zone_id=$ZONE_ID" \
+            -var="tfstate_r2_bucket=$TFSTATE_R2_BUCKET" \
+            -var="tfstate_r2_access_key=$R2_ACCESS_KEY_ID" \
+            -var="tfstate_r2_secret_key=$R2_SECRET_ACCESS_KEY" \
+            tfplan
+
+      - name: Capture Terraform outputs
+        id: tf-output
+        working-directory: terraform
+        run: |
+          echo "d1_database_name=$(terraform output -raw d1_database_name)" >> "$GITHUB_OUTPUT"
+          echo "d1_database_id=$(terraform output -raw d1_database_id)" >> "$GITHUB_OUTPUT"
+          echo "worker_script_name=$(terraform output -raw worker_script_name)" >> "$GITHUB_OUTPUT"

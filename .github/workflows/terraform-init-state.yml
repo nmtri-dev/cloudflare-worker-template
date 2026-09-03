@@ -1,0 +1,104 @@
+name: Terraform Init State
+
+# ---------------------------------------------------------------------------
+# Seeds an EMPTY state file in the R2 state bucket for THIS service
+# (cloudflare-worker-template/<env>.tfstate) BEFORE the sibling services that
+# read this service's state via `terraform_remote_state` are ever applied.
+#
+# Why: `terraform_remote_state` hard-errors ("Unable to find remote state")
+# when the state key does not exist at all, and `defaults` only kicks in when
+# the file EXISTS (even if empty). Seeding a minimal empty state for THIS
+# service's key makes the sibling services' data sources resolve to `null`
+# until this service actually deploys — this is what makes the bootstrap
+# ordering problem go away.
+#
+# This service's own Terraform never reads these sibling states at init time
+# in a way that hard-fails: its `terraform_remote_state` data source
+# (access-management) is guarded by the sibling service's OWN init-state
+# workflow, which seeds ITS key.
+#
+# The seeded file is uploaded with a conditional PUT (`--if-none-match "*"`)
+# so it ONLY writes when the key does not exist yet — existing state (whether
+# a previous seed or a real state from this service's apply) is never
+# touched. This makes the action genuinely idempotent and safe to re-run: the
+# first run seeds the key, every later run is a no-op.
+#
+# Reusable: called by terraform-init-state-dev.yml / -production.yml (and
+# deploy-*.yml before Terraform runs). Inputs are the same backend values the
+# -backend-config args use in terraform.yml.
+# ---------------------------------------------------------------------------
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: 'Target environment (DEV or PROD)'
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  seed-state:
+    runs-on: ubuntu-latest
+    # Binds the caller's environment so the R2 secrets/vars resolve.
+    environment: ${{ inputs.environment || 'DEV' }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # The R2 S3-compatible API is reachable with the aws CLI (v2 ships on
+      # ubuntu-latest) via --endpoint-url. The token used here is the same
+      # R2_ACCESS_KEY_ID/R2_SECRET_ACCESS_KEY pair Terraform uses.
+      - name: Seed empty Terraform state for this service
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          R2_BUCKET: ${{ secrets.TFSTATE_R2_BUCKET }}
+          R2_ENDPOINT: https://${{ vars.CF_ACCOUNT_ID }}.r2.cloudflarestorage.com
+          # Inline expressions (not env.TF_ENV) — GitHub Actions does not
+          # expose job-level env to step env mappings.
+          STATE_KEY: ${{ inputs.environment == 'PROD' && 'cloudflare-worker-template/production.tfstate' || 'cloudflare-worker-template/dev.tfstate' }}
+        run: |
+          set -euo pipefail
+
+          # Minimal valid empty state (version 4). `terraform_remote_state`
+          # sees a non-nil state with no outputs → `defaults` (null) apply.
+          EMPTY_STATE_FILE="$(mktemp)"
+          cat > "$EMPTY_STATE_FILE" <<'EOF'
+          {
+            "version": 4,
+            "terraform_version": "1.5.0",
+            "serial": 0,
+            "lineage": "00000000-0000-0000-0000-000000000000",
+            "outputs": {},
+            "resources": []
+          }
+          EOF
+
+          put_state() {
+            local key="$1"
+            # Conditional PUT: `--if-none-match "*"` succeeds ONLY if the
+            # object does not already exist. If the key exists (a previous
+            # seed OR this service's real state), S3 rejects with a 412
+            # Precondition Failed — we treat that as "already seeded, skip"
+            # so re-runs are clean no-ops. Any OTHER error still fails the
+            # step via `set -e`.
+            if aws s3api put-object \
+              --endpoint-url "$R2_ENDPOINT" \
+              --bucket "$R2_BUCKET" \
+              --key "$key" \
+              --body "$EMPTY_STATE_FILE" \
+              --if-none-match "*" 2>/tmp/put_state.err; then
+              echo "Seeded $key"
+            elif grep -q "PreconditionFailed\|412" /tmp/put_state.err; then
+              echo "Skipped $key (state already exists — not overwritten)"
+            else
+              echo "Failed to seed $key:" >&2
+              cat /tmp/put_state.err >&2
+              exit 1
+            fi
+          }
+
+          put_state "$STATE_KEY"

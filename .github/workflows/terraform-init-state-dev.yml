@@ -1,0 +1,17 @@
+name: '[DEV] Terraform Init State'
+
+on:
+  workflow_dispatch:
+    # Run manually: seeds an empty state file for THIS service so the sibling
+    # services' terraform_remote_state data sources resolve to null.
+    description: 'Seed empty Terraform state for this service in the DEV state bucket'
+
+permissions:
+  contents: read
+
+jobs:
+  init-state:
+    uses: ./.github/workflows/terraform-init-state.yml
+    with:
+      environment: DEV
+    secrets: inherit
