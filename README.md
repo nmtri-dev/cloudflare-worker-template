@@ -101,6 +101,7 @@ Current bindings and variables:
 - Variable `ALLOWED_ORIGINS` for CORS origin allowlist (comma-separated)
 - Variable `JWT_PUBLIC_KEY` for JWT signature verification (RSA public key PEM; provided locally via `.dev.vars`, in deployed environments via Terraform from the GitHub Environment vars)
 - Service binding `ACCESS_MGMT` for access authorization RPC (targets the access-management worker's named `AccessManagementEntrypoint`)
+- Rate limiting binding `RATE_LIMITER` for per-principal rate limiting (enforced by `rateLimitMiddleware` after authentication on protected routes; local placeholder `namespace_id` in `wrangler.jsonc`, real per-environment namespace from Terraform)
 - D1 database binding `DB`
 
 Environments:
@@ -119,6 +120,11 @@ Registered global middleware order:
 2. Request ID middleware
 3. Secure headers
 4. CORS middleware
+
+Protected route groups additionally mount, in order:
+
+1. `authenticationMiddleware()` (JWT)
+2. `rateLimitMiddleware()` (per-principal rate limit — keyed on `principalId`, so it must always come after authentication)
 
 Centralized error handling is configured with `app.onError(handleError)`.
 

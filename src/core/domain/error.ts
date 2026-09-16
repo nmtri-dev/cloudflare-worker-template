@@ -5,6 +5,7 @@ export enum ErrorName {
   NotFoundError = "NotFoundError",
   ConflictError = "ConflictError",
   ForbiddenError = "ForbiddenError",
+  TooManyRequestsError = "TooManyRequestsError",
 }
 
 export class InternalError extends Error {
@@ -52,5 +53,13 @@ export class ForbiddenError extends Error {
     super(message);
     this.name = ErrorName.ForbiddenError;
     Object.setPrototypeOf(this, ForbiddenError.prototype);
+  }
+}
+
+export class TooManyRequestsError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = ErrorName.TooManyRequestsError;
+    Object.setPrototypeOf(this, TooManyRequestsError.prototype);
   }
 }

@@ -169,8 +169,9 @@ resource "cloudflare_workers_script" "worker" {
     }
   }
 
-  # D1 + plain vars + service bindings (ACCESS_MGMT is conditional on the
-  # owning service's remote state containing its worker name AND entrypoint).
+  # D1 + plain vars + rate limiter + service bindings (ACCESS_MGMT is
+  # conditional on the owning service's remote state containing its worker
+  # name AND entrypoint).
   bindings = concat([
     # D1
     {
@@ -188,6 +189,21 @@ resource "cloudflare_workers_script" "worker" {
       name = "JWT_PUBLIC_KEY"
       type = "plain_text"
       text = var.jwt_public_key
+    },
+    # Native Workers rate limiting binding — a per-principal budget (calls to
+    # `limit()` per 60 s per key, where the key is the principal ID).
+    # namespace_id and budget are environment-specific (see the
+    # rate_limit_namespace_id / rate_limit_limit variables — the namespace_id
+    # is unique per account AND per environment, so dev and prod counters
+    # never share state).
+    {
+      name         = "RATE_LIMITER"
+      type         = "ratelimit"
+      namespace_id = var.rate_limit_namespace_id
+      simple = {
+        limit  = var.rate_limit_limit
+        period = 60
+      }
     },
     ],
     # Service binding — included only when access-management's Terraform state

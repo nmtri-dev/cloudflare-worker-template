@@ -50,6 +50,22 @@
       "entrypoint": "AccessManagementEntrypoint",
     },
   ],
+  // Per-principal rate limit, enforced by `rateLimitMiddleware` on the
+  // JWT-protected HTTP routes (mounted after authentication — the binding key
+  // is the principal ID). `namespace_id` must be unique per account AND per
+  // environment; "1001" is the local placeholder for `wrangler dev`.
+  // Deployed environments get this binding from Terraform
+  // (terraform/main.tf) — not from this file.
+  "ratelimits": [
+    {
+      "name": "RATE_LIMITER",
+      "namespace_id": "1001",
+      "simple": {
+        "limit": 1000,
+        "period": 60,
+      },
+    },
+  ],
   "d1_databases": [
     {
       "binding": "DB",
@@ -69,6 +85,17 @@
           // Named RPC entrypoint (not the default fetch handler) — the
           // access-management worker exposes its `authorize` RPC here.
           "entrypoint": "AccessManagementEntrypoint",
+        },
+      ],
+      // Same local rate limiter binding as the root config.
+      "ratelimits": [
+        {
+          "name": "RATE_LIMITER",
+          "namespace_id": "1001",
+          "simple": {
+            "limit": 1000,
+            "period": 60,
+          },
         },
       ],
       "d1_databases": [

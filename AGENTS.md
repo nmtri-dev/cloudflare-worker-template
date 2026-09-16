@@ -59,7 +59,12 @@ src/
 All routes are mounted in `src/adapters/primary/http/index.ts`:
 
 - `GET /message` — plain-text greeting (no auth)
-- `GET/POST /widgets`, `GET/PUT/DELETE /widgets/:id` — example CRUD (JWT auth)
+- `GET/POST /widgets`, `GET/PUT/DELETE /widgets/:id` — example CRUD (JWT auth +
+  per-principal rate limit)
+- Register static path segments (e.g. `/widgets/count`) BEFORE param routes
+  (`/widgets/:id`) — the first registered match wins, so a static segment
+  registered after a param route is captured by (and, with validated params,
+  rejected by) that route.
 
 ### RPC Entrypoints
 
@@ -170,7 +175,7 @@ deployed infrastructure, CI runs it.
 ### Environments / Secrets / Vars (GitHub Environments: DEV, PROD)
 
 - Secrets: `CLOUDFLARE_API_TOKEN`, `TFSTATE_R2_BUCKET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`
-- Vars: `CF_ACCOUNT_ID`, `ALLOWED_ORIGINS`, `JWT_PUBLIC_KEY`, `API_DOMAIN_HOSTNAME`, `ZONE_ID`
+- Vars: `CF_ACCOUNT_ID`, `ALLOWED_ORIGINS`, `JWT_PUBLIC_KEY`, `API_DOMAIN_HOSTNAME`, `ZONE_ID`, `RATE_LIMIT_NAMESPACE_ID`, `RATE_LIMIT_LIMIT`
 - The apply job is gated by "Required reviewers" configured on the environment.
 
 ### Bootstrap (one-time, per environment)
@@ -222,6 +227,33 @@ deployed infrastructure, CI runs it.
 
   await c.env.ACCESS_MGMT.authorize(principalType, principalRoles, resource, action);
   ```
+
+### Rate limiting
+
+- Cloudflare's native Workers Rate Limiting binding (`RATE_LIMITER`,
+  `type = "ratelimit"`) — no npm package, no D1 tables.
+- Enforced by `rateLimitMiddleware`
+  (`src/adapters/primary/http/middlewares/rateLimit.ts`), mounted **per
+  protected route group AFTER `authenticationMiddleware()`** (never globally,
+  never on RPC entrypoints). The binding key is the principal ID
+  (`c.get("principalId")`), so each authenticated principal gets its own
+  independent counter — anonymous `/message` traffic is never counted.
+- Budget: calls to `limit()` per 60 s per key (GitHub Environment var
+  `RATE_LIMIT_LIMIT`, Terraform default 1000). The `namespace_id` must be
+  unique per Cloudflare account AND per environment
+  (`RATE_LIMIT_NAMESPACE_ID`), so dev and prod counters never share state.
+- When the budget is exhausted the middleware logs a warning and throws
+  `TooManyRequestsError` (from `src/core/domain/error.ts`); `handleError()`
+  maps it to HTTP 429 `{ "error": "TooManyRequestsError" }`.
+- Declared in `wrangler.jsonc` root + `local` env (`namespace_id` "1001" is
+  the local placeholder) and as a Terraform binding in `terraform/main.tf`
+  (real per-environment namespace). `wrangler.test.jsonc` binds `RATE_LIMITER`
+  to the permissive `cloudflare-worker-template-rate-limit-mock` worker
+  defined in `vitest.integration.config.mts` (the real ratelimit binding is
+  unavailable in the vitest pool) — rate-limit behavior is covered by unit
+  tests in `test/middlewares/rateLimit.spec.ts`.
+- RPC entrypoints and queue handlers are never rate limited (trusted
+  service-to-service calls).
 
 ### Service Bindings
 
@@ -283,6 +315,7 @@ No deviations from this format. (RPC entrypoints return typed results directly
 ### Hono Middleware
 
 - Add global middleware via `app.use()` in `src/adapters/primary/http/index.ts` (order: logger → requestId → secureHeaders → CORS)
+- Protected route groups mount auth THEN rate limiting: `router.use(authenticationMiddleware()); router.use(rateLimitMiddleware());` — the rate limiter keys on `principalId`, so it must always come after authentication
 - Use `createMiddleware()` factory for custom middleware (see `authentication.ts`)
 - Pass values through request lifecycle via `c.set('key', value)` / `c.get('key')`
 
@@ -295,6 +328,7 @@ No deviations from this format. (RPC entrypoints return typed results directly
 - Config: `vitest.config.mts` (standard Vitest, no pool-workers for unit tests)
 - Unit tests for services mock ports with lightweight test doubles (`vi.fn`, `vi.mocked`)
 - Test files mirror the structure they test under `test/`
+- Middleware tests live in `test/middlewares/` (`rateLimit.spec.ts`; `errorHandler.spec.ts` asserts every `handleError()` status mapping incl. the 429)
 - Zod schema validation tests live in `test/models/requestSchemas.spec.ts`
 - Run `npm test` before committing
 

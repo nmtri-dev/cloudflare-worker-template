@@ -30,6 +30,17 @@ variable "jwt_public_key" {
   description = "RSA public key PEM used to verify JWTs (JWT_PUBLIC_KEY binding)."
 }
 
+variable "rate_limit_namespace_id" {
+  type        = string
+  description = "Namespace ID for the RATE_LIMITER rate limiting binding — a positive integer string unique to the Cloudflare account (e.g. \"1001\"). Use a distinct value per environment so dev and prod counters do not share state. Sourced from the GitHub Environment vars (RATE_LIMIT_NAMESPACE_ID)."
+}
+
+variable "rate_limit_limit" {
+  type        = number
+  description = "Rate limit budget for the RATE_LIMITER binding — the number of allowed requests (calls to `limit()`) within each 60 s window per principal. Sourced from the GitHub Environment vars (RATE_LIMIT_LIMIT); defaults to 1000."
+  default     = 1000
+}
+
 variable "api_domain_hostname" {
   type        = string
   description = "Base API hostname for the environment, e.g. dev-api.example.com (dev) or api.example.com (production). Terraform prefixes it with the service name to build the Worker's public hostname (e.g. cloudflare-worker-template.dev-api.example.com). Leave unset (null) to deploy the Worker without a public hostname."

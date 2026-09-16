@@ -24,6 +24,8 @@ export function handleError(error: Error, c: Context) {
       return c.json({ error: error.name }, 409);
     case ErrorName.ForbiddenError:
       return c.json({ error: error.name }, 403);
+    case ErrorName.TooManyRequestsError:
+      return c.json({ error: error.name }, 429);
     case ErrorName.InternalError:
       return c.json({ error: error.name }, 500);
     default:

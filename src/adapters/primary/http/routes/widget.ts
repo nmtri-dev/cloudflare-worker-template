@@ -1,19 +1,22 @@
 import { Hono } from "hono";
 import { sValidator } from "@hono/standard-validator";
 import { AppEnv } from "../types";
-import { authenticationMiddleware } from "../middlewares";
+import { authenticationMiddleware, rateLimitMiddleware } from "../middlewares";
 import { DefaultLogger } from "../../../secondary/loggers";
 import { D1WidgetRepository } from "../../../secondary/d1WidgetRepository";
 import { WidgetService } from "../../../../core/services/widgetService";
 import {
   createWidgetSchema,
   updateWidgetSchema,
-} from "../models/widgetRequestSchemas";
+} from "../models";
 
 export const widgetRoutes = new Hono<AppEnv>();
 
 // All widget routes require a valid JWT.
 widgetRoutes.use(authenticationMiddleware());
+// Rate limit per authenticated principal (keyed on the principal ID set by
+// the authentication middleware above). MUST stay after authentication.
+widgetRoutes.use(rateLimitMiddleware());
 
 widgetRoutes.get("/", async (c) => {
   const logger = new DefaultLogger();

@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   createWidgetSchema,
   updateWidgetSchema,
-} from "../../src/adapters/primary/http/models/widgetRequestSchemas";
+} from "../../src/adapters/primary/http/models";
 
 describe("createWidgetSchema", () => {
   it("accepts a valid payload", () => {

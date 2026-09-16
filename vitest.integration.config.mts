@@ -53,6 +53,23 @@ export default defineConfig(async () => {
                 export default AccessManagementEntrypoint;
               `,
             },
+            // Permissive rate limiter stub — integration tests exercise route
+            // behavior, not the rate limit (covered by unit tests in
+            // test/middlewares/rateLimit.spec.ts). Resolves the RATE_LIMITER
+            // service binding declared in wrangler.test.jsonc.
+            {
+              name: "cloudflare-worker-template-rate-limit-mock",
+              compatibilityDate: "2024-01-01",
+              modules: true,
+              script: `
+                import { WorkerEntrypoint } from 'cloudflare:workers';
+                export default class extends WorkerEntrypoint {
+                  async limit() {
+                    return { success: true };
+                  }
+                }
+              `,
+            },
           ],
         },
       }),
