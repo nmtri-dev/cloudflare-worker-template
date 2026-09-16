@@ -58,6 +58,8 @@ paths:
                       $ref: "#/components/schemas/Widget"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
     post:
       operationId: createWidget
       summary: Create a widget
@@ -89,6 +91,8 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "409":
           $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
   /widgets/{widgetId}:
     get:
       operationId: getWidget
@@ -115,6 +119,8 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
     put:
       operationId: updateWidget
       summary: Update a widget
@@ -148,6 +154,8 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
     delete:
       operationId: deleteWidget
       summary: Delete a widget
@@ -180,6 +188,8 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
 components:
   securitySchemes:
     bearerAuth:
@@ -235,6 +245,16 @@ components:
             conflict:
               value:
                 error: ConflictError
+    TooManyRequests:
+      description: Rate limit exceeded (per authenticated principal).
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          examples:
+            tooManyRequests:
+              value:
+                error: TooManyRequestsError
   schemas:
     Widget:
       type: object
@@ -310,4 +330,5 @@ components:
             - NotFoundError
             - ConflictError
             - ForbiddenError
+            - TooManyRequestsError
           example: InternalError

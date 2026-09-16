@@ -58,6 +58,8 @@ jobs:
           JWT_PUBLIC_KEY: ${{ vars.JWT_PUBLIC_KEY }}
           API_DOMAIN_HOSTNAME: ${{ vars.API_DOMAIN_HOSTNAME }}
           ZONE_ID: ${{ vars.ZONE_ID }}
+          RATE_LIMIT_NAMESPACE_ID: ${{ vars.RATE_LIMIT_NAMESPACE_ID }}
+          RATE_LIMIT_LIMIT: ${{ vars.RATE_LIMIT_LIMIT }}
           TFSTATE_R2_BUCKET: ${{ secrets.TFSTATE_R2_BUCKET }}
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
@@ -69,6 +71,8 @@ jobs:
             -var="jwt_public_key=$JWT_PUBLIC_KEY" \
             -var="api_domain_hostname=$API_DOMAIN_HOSTNAME" \
             -var="zone_id=$ZONE_ID" \
+            -var="rate_limit_namespace_id=$RATE_LIMIT_NAMESPACE_ID" \
+            -var="rate_limit_limit=$RATE_LIMIT_LIMIT" \
             -var="tfstate_r2_bucket=$TFSTATE_R2_BUCKET" \
             -var="tfstate_r2_access_key=$R2_ACCESS_KEY_ID" \
             -var="tfstate_r2_secret_key=$R2_SECRET_ACCESS_KEY"

@@ -47,7 +47,7 @@ You are a senior code reviewer specializing in this Cloudflare Workers API built
 ### Error Handling
 
 - [ ] Custom error classes from `src/core/domain/error.ts` thrown — never raw strings or generic `Error`
-- [ ] Available error classes: `InternalError`, `BadRequestError`, `UnauthorizedError`, `NotFoundError`, `ConflictError`, `ForbiddenError`
+- [ ] Available error classes: `InternalError`, `BadRequestError`, `UnauthorizedError`, `NotFoundError`, `ConflictError`, `ForbiddenError`, `TooManyRequestsError`
 - [ ] Always log before throwing errors: `logger.error('message', { context })` or `logger.info('message', { context })`
 - [ ] Log with structured context objects — never string interpolation
 - [ ] HTTP status mapping centralized in `handleError()` in the HTTP adapter — no status logic in routes
@@ -80,6 +80,7 @@ You are a senior code reviewer specializing in this Cloudflare Workers API built
 - [ ] Custom middleware uses `createMiddleware()` factory pattern
 - [ ] Values passed through request lifecycle via `c.set('key', value)` / `c.get('key')`
 - [ ] `authenticationMiddleware()` applied to all protected routes
+- [ ] Protected route groups mount auth THEN rate limiting (`rateLimitMiddleware()` after `authenticationMiddleware()`) — the rate limiter keys on `principalId` and must never run on RPC entrypoints
 
 ### Database (D1)
 
@@ -105,6 +106,7 @@ You are a senior code reviewer specializing in this Cloudflare Workers API built
 ### openapi.yaml
 
 - [ ] New or changed HTTP endpoints reflected in `openapi.yaml` (RPC entrypoints get no paths)
+- [ ] JWT-protected routes reference the shared `429` (`TooManyRequests`) response
 - [ ] Request/response schemas match Zod validation schemas
 - [ ] At least one `example` for request body and/or response on new routes
 
@@ -122,7 +124,7 @@ You are a senior code reviewer specializing in this Cloudflare Workers API built
 
 - [ ] `npm run cf-typegen` run after binding changes in `wrangler.jsonc`
 - [ ] Worker limits not exceeded — no unbounded loops or excessive CPU/memory usage patterns
-- [ ] Bindings (`DB`, `ACCESS_MGMT`) correctly referenced in code and `wrangler.jsonc`
+- [ ] Bindings (`DB`, `ACCESS_MGMT`, `RATE_LIMITER`) correctly referenced in code, `wrangler.jsonc` / `wrangler.test.jsonc`, and Terraform
 
 ## Approach
 

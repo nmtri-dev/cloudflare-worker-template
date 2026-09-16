@@ -24,7 +24,7 @@ You are a Senior Code Reviewer for this Cloudflare Worker service built with Hon
 4. **Check input validation** — All POST/PUT/PATCH bodies must use Zod schemas via `sValidator('json', schema)` middleware. No manual validation inside handlers.
 5. **Check API response format** — All responses must use `{ "data": ... }` on success and `{ "error": "ErrorName" }` on failure. RPC entrypoints return typed results directly (no envelope, no `openapi.yaml` path).
 6. **Check access control** — HTTP routes must call `ACCESS_MGMT.authorize()` with the correct resource/action pair. RPC entrypoints must NOT (trusted service-to-service — no JWT principal to authorize).
-7. **Check middleware conventions** — Verify global middleware order and usage patterns from `src/adapters/primary/http/index.ts` and `AGENTS.md`.
+7. **Check middleware conventions** — Verify global middleware order and usage patterns from `src/adapters/primary/http/index.ts` and `AGENTS.md` (protected route groups mount auth THEN rate limiting; the rate limiter keys on `principalId` and never runs on RPC entrypoints).
 8. **Check domain naming** — Domain types must be camelCase; raw D1 row interfaces in secondary adapters stay snake_case and map to camelCase domain objects.
 9. **Check security** — Look for injection risks, unsafe eval, insecure JWT handling, missing input validation, and OWASP Top 10 concerns.
 10. **Check test coverage** — New features should include unit/integration tests when test infrastructure is present. If tests are unavailable, explicitly flag this gap.
@@ -59,7 +59,7 @@ Produce a structured review report:
 - [ ] API response envelope correct (`{ "data": ... }` for HTTP; RPC entrypoints return typed results directly)
 - [ ] Access control applied (HTTP routes authorize; RPC entrypoints do not)
 - [ ] Domain types camelCase; raw D1 rows snake_case
-- [ ] Middleware conventions followed
+- [ ] Middleware conventions followed (auth THEN rate limiting on protected route groups; rate limiter only after `principalId` is set, never on RPC entrypoints)
 - [ ] Security concerns addressed
 - [ ] Tests added and passing (or gap documented)
 - [ ] openapi.yaml updated (if applicable)

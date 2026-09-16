@@ -14,6 +14,15 @@
       // The access-management worker exposes its `authorize` RPC here. Named
       // entrypoint must match the binding declared in wrangler.jsonc.
       "entrypoint": "AccessManagementEntrypoint"
+    },
+    {
+      // Permissive rate limiter stub for integration tests — resolves to the
+      // `cloudflare-worker-template-rate-limit-mock` worker defined in
+      // vitest.integration.config.mts. The real `ratelimit` binding is not
+      // available in the vitest pool; rate-limit behavior is covered by unit
+      // tests in test/middlewares/rateLimit.spec.ts.
+      "binding": "RATE_LIMITER",
+      "service": "cloudflare-worker-template-rate-limit-mock"
     }
   ],
   "d1_databases": [
