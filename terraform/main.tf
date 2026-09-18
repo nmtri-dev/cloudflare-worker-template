@@ -55,7 +55,7 @@ locals {
   # The access-management service's state key follows the same naming
   # convention as this service's own key: <service>/<env>.tfstate.
   # Derived here — no need to pass it in from CI.
-  access_mgmt_state_key = "cardy-ai-access-management/${var.environment}.tfstate"
+  access_mgmt_state_key = "cardy360-access-management/${var.environment}.tfstate"
 }
 
 data "terraform_remote_state" "access_mgmt" {
